@@ -1,0 +1,45 @@
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+
+# Build outputs
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# User secrets (if używasz Secret Manager)
+**/secrets.json
+**/UserSecrets/
+
+# dotnet tool caches
+.templateengine/
+.template.config/
+
+# NuGet
+packages/
+*.nupkg
+# The packages folder can be ignored because of PackageRestore
+**/packages/*
+!**/packages/build/
+!**/packages/repositories.config
+
+# Resharper
+_ReSharper*/
+*.DotSettings.user
+
+# macOS
+.DS_Store

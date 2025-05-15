@@ -1,0 +1,44 @@
+﻿@page "/accounts/edit/{Id:int}"
+@namespace BudgetApp.Pages.Accounts
+@using BudgetApp.Data
+@using BudgetApp.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
+
+<h3>@(Id == 0 ? "New" : "Edit") account</h3>
+
+<EditForm Model="account" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <!-- pola -->
+
+    <button type="submit" class="btn btn-success">Save</button>
+    <button type="button" class="btn btn-secondary ms-2"
+            @onclick='() => Nav.NavigateTo("/accounts")'>
+        Cancel
+    </button>
+
+    
+</EditForm>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    Account account = new();
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != 0)
+        {
+            var fromDb = await Db.Accounts.FindAsync(Id);
+            if (fromDb != null) account = fromDb;
+        }
+    }
+    async Task Save()
+    {
+        if (Id == 0) Db.Accounts.Add(account);
+        else Db.Accounts.Update(account);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/accounts");
+    }
+}

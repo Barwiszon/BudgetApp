@@ -1,0 +1,68 @@
+﻿@page "/accounts"
+@namespace BudgetApp.Pages.Accounts
+@using BudgetApp.Data
+@using BudgetApp.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+
+<h3>Accounts</h3>
+
+<p>
+    <button class="btn btn-primary" @onclick="CreateNew">New account</button>
+</p>
+
+@if (accounts is null)
+{
+    <p><em>Loading…</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Balance</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in accounts)
+            {
+                <tr>
+                    <td>@a.Name</td>
+                    <td>@a.Balance.ToString("C")</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary me-1" @onclick="() => Edit(a.Id)">Edit</button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => Delete(a.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    List<Account>? accounts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        accounts = await Db.Accounts.ToListAsync();
+    }
+
+    void CreateNew() => Navigation.NavigateTo("/accounts/edit/0");
+    void Edit(int id) => Navigation.NavigateTo($"/accounts/edit/{id}");
+    async Task Delete(int id)
+    {
+        var a = await Db.Accounts.FindAsync(id);
+        if (a != null)
+        {
+            Db.Accounts.Remove(a);
+            await Db.SaveChangesAsync();
+            accounts = await Db.Accounts.ToListAsync();
+        }
+    }
+
+    [Inject] NavigationManager Nav { get; set; } = default!;
+}
