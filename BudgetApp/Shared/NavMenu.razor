@@ -23,17 +23,40 @@
                 <li class="nav-item">
                     <NavLink class="nav-link" href="accounts">Accounts</NavLink>
                 </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="categories">
+                        <span class="oi oi-list-rich" aria-hidden="true"></span> Categories
+                    </NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="transactions">
+                        <span class="oi oi-dollar" aria-hidden="true"></span> Transactions
+                    </NavLink>
+                </li>
+
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="families">Rodziny</NavLink>
+                </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link" href="families/create">Nowa rodzina</NavLink>
+                </li>
+
+
+
             </ul>
             <ul class="navbar-nav">
                 <AuthorizeView>
                     <Authorized>
                         <li class="nav-item">
-                            <NavLink class="nav-link" href="Identity/Account/Manage">Account</NavLink>
+                            <NavLink class="nav-link" href="Areas/Identity/Pages/Account/Manage">Account</NavLink>
                         </li>
                     </Authorized>
                     <NotAuthorized>
                         <li class="nav-item">
-                            <NavLink class="nav-link" href="Identity/Account/Login">Login</NavLink>
+                            <NavLink class="nav-link" href="Areas/Identity/Pages/Account/Login">Logowanie</NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink class="nav-link" href="/Identity/Account/Register">Rejestracja</NavLink>
                         </li>
                     </NotAuthorized>
                 </AuthorizeView>

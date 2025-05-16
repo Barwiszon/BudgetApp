@@ -4,17 +4,12 @@ namespace BudgetApp.Models
 {
     public class Category
     {
-        [Key]
         public int Id { get; set; }
-
-        [Required, StringLength(100)]
-        public string Name { get; set; }
-
-        // true = wydatek, false = przychód
-        public bool IsExpense { get; set; }
-
-        [Required]
-        public string UserId { get; set; }
-        public ApplicationUser User { get; set; }
+        public string Name { get; set; } = null!;
+        // …
+        public int FamilyId { get; set; }
+        public Family Family { get; set; } = null!;
+        public string UserId { get; set; } = null!;
+        public ApplicationUser User { get; set; } = null!;
     }
 }

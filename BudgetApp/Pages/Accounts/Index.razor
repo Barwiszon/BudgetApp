@@ -5,37 +5,45 @@
 @using Microsoft.EntityFrameworkCore
 @inject ApplicationDbContext Db
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@using Microsoft.AspNetCore.Identity
 
-
-<h3>Accounts</h3>
+<h3>Moje konta</h3>
 
 <p>
-    <button class="btn btn-primary" @onclick="CreateNew">New account</button>
+    <NavLink class="btn btn-success" href="/accounts/create">Dodaj konto</NavLink>
 </p>
 
 @if (accounts is null)
 {
-    <p><em>Loading…</em></p>
+    <p><em>Ładowanie…</em></p>
+}
+else if (!accounts.Any())
+{
+    <p>Brak kont w Twojej rodzinie.</p>
 }
 else
 {
-    <table class="table table-striped">
+    <table class="table">
         <thead>
-            <tr>
-                <th>Name</th>
-                <th>Balance</th>
-                <th></th>
-            </tr>
+            <tr><th>Nazwa</th><th>Saldo</th><th>Akcje</th></tr>
         </thead>
         <tbody>
             @foreach (var a in accounts)
             {
                 <tr>
                     <td>@a.Name</td>
-                    <td>@a.Balance.ToString("C")</td>
+                    <td>@a.Balance:C</td>
                     <td>
-                        <button class="btn btn-sm btn-secondary me-1" @onclick="() => Edit(a.Id)">Edit</button>
-                        <button class="btn btn-sm btn-danger" @onclick="() => Delete(a.Id)">Delete</button>
+                        <NavLink class="btn btn-sm btn-primary"
+                                 href="@($"/accounts/edit/{a.Id}")">
+                            Edytuj
+                        </NavLink>
+                        <NavLink class="btn btn-sm btn-danger"
+                                 href="@($"/accounts/delete/{a.Id}")">
+                            Usuń
+                        </NavLink>
                     </td>
                 </tr>
             }
@@ -44,25 +52,18 @@ else
 }
 
 @code {
-    List<Account>? accounts;
+    private List<Account>? accounts;
 
     protected override async Task OnInitializedAsync()
     {
-        accounts = await Db.Accounts.ToListAsync();
-    }
+        // 1. Pobierz stan uwierzytelnienia i samego usera
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
 
-    void CreateNew() => Navigation.NavigateTo("/accounts/edit/0");
-    void Edit(int id) => Navigation.NavigateTo($"/accounts/edit/{id}");
-    async Task Delete(int id)
-    {
-        var a = await Db.Accounts.FindAsync(id);
-        if (a != null)
-        {
-            Db.Accounts.Remove(a);
-            await Db.SaveChangesAsync();
-            accounts = await Db.Accounts.ToListAsync();
-        }
+        // 2. Filtruj konta po FamilyId
+        accounts = await Db.Accounts
+            .Where(a => a.FamilyId == user.FamilyId)
+            .ToListAsync();
     }
-
-    [Inject] NavigationManager Nav { get; set; } = default!;
 }

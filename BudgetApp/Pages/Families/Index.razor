@@ -1,0 +1,50 @@
+﻿@page "/families"
+
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore    @* <-- potrzebne dla ToListAsync *@
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser>  UserManager
+@inject ApplicationDbContext          Db
+
+<h3>Moje rodziny</h3>
+
+@if (families is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var f in families)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                @f.Name
+                <NavLink class="btn btn-sm btn-primary"
+                         href="@($"/families/edit/{f.Id}")">
+                    Edytuj
+                </NavLink>
+
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<Family>? families;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // pobierz zalogowanego usera
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        // załaduj wszystkie rodziny, w których user uczestniczy lub które stworzył
+        families = await Db.Families
+                           .Where(f => f.CreatedByUserId == user.Id
+                                    || f.Members.Any(m => m.Id == user.Id))
+                           .ToListAsync();    // <- wymaga Microsoft.EntityFrameworkCore
+    }
+}

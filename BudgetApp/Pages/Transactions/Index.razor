@@ -1,0 +1,78 @@
+﻿@page "/transactions"
+@namespace BudgetApp.Pages.Transactions
+@using BudgetApp.Data
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<h3>Transakcje</h3>
+
+<p>
+    <NavLink class="btn btn-primary" href="/transactions/edit/0">+ Nowa transakcja</NavLink>
+</p>
+
+@if (transactions is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else if (!transactions.Any())
+{
+    <p>Brak transakcji w Twojej rodzinie.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Kwota</th>
+                <th>Konto</th>
+                <th>Kategoria</th>
+                <th>Notatka</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tx in transactions)
+            {
+                <tr>
+                    <td>@tx.Date:yyyy-MM-dd</td>
+                    <td>@tx.Amount:C</td>
+                    <td>@tx.Account.Name</td>
+                    <td>@tx.Category.Name</td>
+                    <td>@tx.Note</td>
+                    <td>
+                        <NavLink class="btn btn-sm btn-secondary"
+                                 href="@($"/transactions/edit/{tx.Id}")">
+                            Edytuj
+                        </NavLink>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Transaction>? transactions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Pobierz zalogowanego użytkownika
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                          ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+
+        // 2. Filtruj transakcje po FamilyId
+        transactions = await Db.Transactions
+            .Where(t => t.FamilyId == user.FamilyId)
+            .Include(t => t.Account)
+            .Include(t => t.Category)
+            .OrderByDescending(t => t.Date)
+            .ToListAsync();
+    }
+}

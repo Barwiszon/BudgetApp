@@ -1,10 +1,9 @@
-﻿using BudgetApp.Data;
+using BudgetApp.Data;
 using BudgetApp.Models;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,18 +14,16 @@ builder.Services.AddDbContext<ApplicationDbContext>(opts =>
     opts.UseSqlite(conn));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
-// Identity + domyślne UI + EF stores
+// Identity + domyślne UI + EF Stores
 builder.Services
     .AddDefaultIdentity<ApplicationUser>(opts => opts.SignIn.RequireConfirmedAccount = false)
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
-// Blazor Server + AuthenticationState
+// Blazor Server + uwierzytelnianie
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
-
-
-// dummy email sender (Identity.UI wymaga IEmailSender)
+// „pusty” e-mail sender potrzebny dla Identity.UI
 builder.Services.AddSingleton<IEmailSender, NullEmailSender>();
 
 var app = builder.Build();
@@ -48,12 +45,12 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapRazorPages();             // /Identity/Account/...
-app.MapBlazorHub();              // SignalR Blazor
-app.MapFallbackToPage("/_Host"); // host-page
+app.MapBlazorHub();              // Blazor SignalR
+app.MapFallbackToPage("/_Host"); // strona hostująca Blazor
 
 app.Run();
 
+// Pomocnicza klasa no-op do wysyłki maili
 public class NullEmailSender : IEmailSender
 {
     public Task SendEmailAsync(string email, string subject, string htmlMessage)

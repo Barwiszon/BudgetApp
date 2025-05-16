@@ -1,0 +1,78 @@
+﻿@page "/categories/edit/{Id:int}"
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Nav
+
+<h3>@(Id == 0 ? "Nowa kategoria" : "Edytuj kategorię")</h3>
+
+@if (category is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <EditForm Model="category" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Nazwa kategorii</label>
+            <InputText class="form-control" @bind-Value="category.Name" />
+        </div>
+
+        <button class="btn btn-success" type="submit">Zapisz</button>
+        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">
+            Anuluj
+        </button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Category? category;
+    private int? currentFamilyId;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Pobierz bieżącego usera
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+
+        currentUserId = user.Id;
+        currentFamilyId = user.FamilyId;
+
+        if (Id == 0)
+        {
+            // fallback na Create, ale lepiej użyć dedykowanej Create.razor
+            Nav.NavigateTo("/categories/create");
+            return;
+        }
+
+        // Pobierz kategorię tylko z tej samej rodziny
+        category = await Db.Categories
+                         .FirstOrDefaultAsync(c => c.Id == Id && c.FamilyId == currentFamilyId);
+        if (category is null)
+        {
+            Nav.NavigateTo("/categories");
+        }
+    }
+
+    private async Task Save()
+    {
+        if (category is null) return;
+
+        Db.Categories.Update(category);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/categories");
+    }
+
+    private void Cancel()
+        => Nav.NavigateTo("/categories");
+}

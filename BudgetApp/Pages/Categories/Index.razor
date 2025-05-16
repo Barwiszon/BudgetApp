@@ -1,0 +1,62 @@
+﻿@page "/categories"
+@namespace BudgetApp.Pages.Categories
+@using BudgetApp.Data
+@using BudgetApp.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@using Microsoft.AspNetCore.Identity
+<h3>Moje Kategorie</h3>
+
+<p>
+    <NavLink class="btn btn-primary" href="/categories/edit/0">+ Dodaj kategorię</NavLink>
+</p>
+
+@if (categories is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else if (!categories.Any())
+{
+    <p>Brak kategorii w Twojej rodzinie.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr><th>Nazwa</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var cat in categories)
+            {
+                <tr>
+                    <td>@cat.Name</td>
+                    <td>
+                        <NavLink class="btn btn-sm btn-secondary"
+                                 href="@($"/categories/edit/{cat.Id}")">
+                            Edytuj
+                        </NavLink>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Category>? categories;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Pobierz stan uwierzytelnienia i usera
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+
+        // 2. Filtruj kategorie po FamilyId
+        categories = await Db.Categories
+            .Where(c => c.FamilyId == user.FamilyId)
+            .ToListAsync();
+    }
+}

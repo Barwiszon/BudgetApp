@@ -4,17 +4,16 @@ namespace BudgetApp.Models
 {
     public class Account
     {
-        [Key]
         public int Id { get; set; }
-
-        [Required, StringLength(100)]
-        public string Name { get; set; }
-
-        [Required, Range(0, double.MaxValue)]
+        public string Name { get; set; } = null!;
         public decimal Balance { get; set; }
 
-        [Required]
-        public string UserId { get; set; }
-        public ApplicationUser User { get; set; }
+        // → DODAJ TO:
+        public int FamilyId { get; set; }
+        public Family Family { get; set; } = null!;
+
+        public string UserId { get; set; } = null!;
+        public ApplicationUser User { get; set; } = null!;
+
     }
 }

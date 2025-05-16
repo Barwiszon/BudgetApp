@@ -1,44 +1,82 @@
 ﻿@page "/accounts/edit/{Id:int}"
-@namespace BudgetApp.Pages.Accounts
-@using BudgetApp.Data
 @using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
+@attribute [Authorize]
 @inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Nav
 
-<h3>@(Id == 0 ? "New" : "Edit") account</h3>
+<h3>Edytuj konto</h3>
 
-<EditForm Model="account" OnValidSubmit="Save">
-    <DataAnnotationsValidator />
-    <ValidationSummary />
+@if (account is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <EditForm Model="account" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
 
-    <!-- pola -->
+        <div class="mb-3">
+            <label class="form-label">Nazwa konta</label>
+            <InputText class="form-control" @bind-Value="account.Name" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Saldo</label>
+            <InputNumber class="form-control" @bind-Value="account.Balance" />
+        </div>
 
-    <button type="submit" class="btn btn-success">Save</button>
-    <button type="button" class="btn btn-secondary ms-2"
-            @onclick='() => Nav.NavigateTo("/accounts")'>
-        Cancel
-    </button>
-
-    
-</EditForm>
+        <button class="btn btn-success" type="submit">Zapisz</button>
+        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">
+            Anuluj
+        </button>
+    </EditForm>
+}
 
 @code {
     [Parameter] public int Id { get; set; }
-    Account account = new();
+    private Account? account;
+    private string currentUserId = "";
+    private int currentFamilyId;
+
     protected override async Task OnInitializedAsync()
     {
-        if (Id != 0)
+        // Pobierz stan uwierzytelnienia i użytkownika
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+
+        currentUserId = user.Id;
+        currentFamilyId = user.FamilyId ?? throw new InvalidOperationException("Brak FamilyId.");
+
+        // Załaduj konto, ale tylko z tej samej rodziny
+        account = await Db.Accounts
+                          .FirstOrDefaultAsync(a => a.Id == Id && a.FamilyId == currentFamilyId);
+
+        if (account is null)
         {
-            var fromDb = await Db.Accounts.FindAsync(Id);
-            if (fromDb != null) account = fromDb;
+            // Jeśli nie ma lub nie należy do rodziny, wróć do listy
+            Nav.NavigateTo("/accounts");
         }
     }
-    async Task Save()
+
+    private async Task Save()
     {
-        if (Id == 0) Db.Accounts.Add(account);
-        else Db.Accounts.Update(account);
+        if (account is null) return;
+
+        // Zapisz zmiany
+        Db.Accounts.Update(account);
         await Db.SaveChangesAsync();
+
+        Nav.NavigateTo("/accounts");
+    }
+
+    private void Cancel()
+    {
         Nav.NavigateTo("/accounts");
     }
 }

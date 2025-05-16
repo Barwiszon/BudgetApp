@@ -29,6 +29,8 @@
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.16" />
 		<!-- jeśli nie potrzebujesz SQL Server, możesz wyrzucić tę linię -->
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.16" />
+		<PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="9.0.0" />
 	</ItemGroup>
 
 </Project>
+

@@ -1,0 +1,74 @@
+﻿@page "/categories/create"
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Nav
+
+<h3>Nowa kategoria</h3>
+
+@if (category is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <EditForm Model="category" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Nazwa kategorii</label>
+            <InputText class="form-control" @bind-Value="category.Name" />
+        </div>
+
+        <button class="btn btn-success" type="submit">Dodaj kategorię</button>
+        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">
+            Anuluj
+        </button>
+    </EditForm>
+}
+
+@code {
+    private Category? category;
+    private string? currentUserId;
+    private int? currentFamilyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Pobierz bieżącego użytkownika i jego FamilyId
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+
+        currentUserId = user.Id;
+        currentFamilyId = user.FamilyId;
+
+        // Zainicjuj nową kategorię
+        category = new Category
+            {
+                Name = "",
+                UserId = currentUserId!,
+                FamilyId = currentFamilyId!.Value
+            };
+    }
+
+    private async Task Save()
+    {
+        if (category is null) return;
+
+        // Upewnij się, że mamy poprawne Id
+        category.UserId = currentUserId!;
+        category.FamilyId = currentFamilyId!.Value;
+
+        Db.Categories.Add(category);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/categories");
+    }
+
+    private void Cancel()
+        => Nav.NavigateTo("/categories");
+}

@@ -1,0 +1,27 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using BudgetApp.Models
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+@if (SignInManager.IsSignedIn(User))
+{
+    <form class="d-flex align-items-center" asp-area="Identity" asp-page="/Account/Logout" method="post">
+        <span class="navbar-text me-2">
+            Witaj, @UserManager.GetUserName(User)!
+        </span>
+        <button type="submit" class="btn btn-link nav-link p-0">
+            Wyloguj
+        </button>
+    </form>
+}
+else
+{
+    <ul class="navbar-nav">
+        <li class="nav-item">
+            <a class="nav-link" asp-area="Identity" asp-page="/Account/Login">Zaloguj</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" asp-area="Identity" asp-page="/Account/Register">Zarejestruj</a>
+        </li>
+    </ul>
+}

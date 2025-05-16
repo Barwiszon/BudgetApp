@@ -1,0 +1,128 @@
+﻿@page "/transactions/edit/{Id:int}"
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Nav
+
+<h3>@(Id == 0 ? "Nowa transakcja" : "Edytuj transakcję")</h3>
+
+@if (tx is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <EditForm Model="tx" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Data</label>
+            <InputDate class="form-control" @bind-Value="tx.Date" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Kwota</label>
+            <InputNumber class="form-control" @bind-Value="tx.Amount" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Konto</label>
+            <InputSelect class="form-select" @bind-Value="tx.AccountId">
+                <option value="">— wybierz —</option>
+                @foreach (var acc in accounts)
+                {
+                    <option value="@acc.Id">@acc.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Kategoria</label>
+            <InputSelect class="form-select" @bind-Value="tx.CategoryId">
+                <option value="">— wybierz —</option>
+                @foreach (var cat in categories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Notatka</label>
+            <InputText class="form-control" @bind-Value="tx.Note" />
+        </div>
+
+        <button class="btn btn-success" type="submit">Zapisz</button>
+        <button class="btn btn-secondary ms-2" type="button"
+                @onclick='() => Nav.NavigateTo("/transactions")'>
+            Anuluj
+        </button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Transaction? tx;
+    private List<Account> accounts = new();
+    private List<Category> categories = new();
+    private string? currentUserId;
+    private int? currentFamilyId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Pobierz zalogowanego usera i jego FamilyId
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+        currentUserId = user.Id;
+        currentFamilyId = user.FamilyId;
+
+        // 2. Załaduj dropdowny tylko dla tej rodziny
+        accounts = await Db.Accounts
+                             .Where(a => a.FamilyId == currentFamilyId)
+                             .ToListAsync();
+        categories = await Db.Categories
+                             .Where(c => c.FamilyId == currentFamilyId)
+                             .ToListAsync();
+
+        // 3. Przygotuj model
+        if (Id == 0)
+        {
+            tx = new Transaction
+                {
+                    Date = DateTime.Today,
+                    FamilyId = currentFamilyId!.Value,
+                    UserId = currentUserId!
+                };
+        }
+        else
+        {
+            tx = await Db.Transactions
+                         .FirstOrDefaultAsync(t => t.Id == Id && t.FamilyId == currentFamilyId);
+            if (tx == null)
+            {
+                // nie ma dostępu do tej transakcji – cofnij
+                Nav.NavigateTo("/transactions");
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        if (tx == null) return;
+
+        // upewnij się, że relacje są poprawne
+        tx.FamilyId = currentFamilyId!.Value;
+        tx.UserId = currentUserId!;
+
+        if (Id == 0)
+            Db.Transactions.Add(tx);
+        else
+            Db.Transactions.Update(tx);
+
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/transactions");
+    }
+}
