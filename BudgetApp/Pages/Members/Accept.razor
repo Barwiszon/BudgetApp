@@ -15,30 +15,26 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // pobierz zalogowanego użytkownika
+   
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-        // znajdź zaproszenie
+         
         var invite = await Db.Invites
                              .FirstOrDefaultAsync(i => i.Id == Token && i.Email == user.Email);
         if (invite == null)
         {
-            // zaproszenie nie istnieje lub nie dla tego maila
             Nav.NavigateTo("/", forceLoad: true);
             return;
         }
 
-        // przypisz FamilyId i zapisz zmiany
         user.FamilyId = invite.FamilyId;
         await UserManager.UpdateAsync(user);
 
-        // usuń zaproszenie
         Db.Invites.Remove(invite);
         await Db.SaveChangesAsync();
 
-        // przekieruj do podglądu rodziny
         Nav.NavigateTo("/family");
     }
 }

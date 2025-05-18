@@ -21,14 +21,14 @@ namespace BudgetApp.Data
         {
             base.OnModelCreating(builder);
 
-            // 1) Kto utworzy³ Family
+            
             builder.Entity<Family>()
                 .HasOne(f => f.CreatedByUser)
                 .WithMany(u => u.FamiliesCreated)
                 .HasForeignKey(f => f.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // 2) Ka¿dy ApplicationUser mo¿e nale¿eæ do jednej Family
+            
             builder.Entity<ApplicationUser>()
                 .HasOne(u => u.Family)
                 .WithMany(f => f.Members)
@@ -47,7 +47,7 @@ namespace BudgetApp.Data
 
 
 
-            // (opcjonalnie) mo¿esz dodaæ konfiguracjê dla Account, Category, Transaction...
+           
         }
     }
 }

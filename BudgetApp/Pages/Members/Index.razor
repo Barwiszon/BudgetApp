@@ -45,12 +45,10 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // 1) pobierz zalogowanego usera
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(authState.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-        // 2) załaduj rodziny, które utworzył albo do których należy
         families = await Db.Families
             .Where(f =>
                 f.CreatedByUserId == user.Id
