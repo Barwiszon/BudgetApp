@@ -1,6 +1,4 @@
 ﻿@page "/transactions"
-@namespace BudgetApp.Pages.Transactions
-@using BudgetApp.Data
 @using BudgetApp.Models
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
@@ -8,12 +6,14 @@
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
-@using Microsoft.AspNetCore.Authorization
-@attribute [Authorize]
+@inject NavigationManager Nav
+
 <h3>Transakcje</h3>
 
 <p>
-    <NavLink class="btn btn-primary" href="/transactions/edit/0">+ Nowa transakcja</NavLink>
+    <button class="btn btn-primary" @onclick='() => Nav.NavigateTo("/transactions/create")'>
+        + Nowa transakcja
+    </button>
 </p>
 
 @if (transactions is null)
@@ -22,7 +22,7 @@
 }
 else if (!transactions.Any())
 {
-    <p>Brak transakcji w Twojej rodzinie.</p>
+    <p>Brak transakcji w tej rodzinie.</p>
 }
 else
 {
@@ -34,46 +34,65 @@ else
                 <th>Konto</th>
                 <th>Kategoria</th>
                 <th>Notatka</th>
-                <th></th>
+                <th>Akcje</th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var tx in transactions)
-            {
-                <tr>
-                    <td>@tx.Date:yyyy-MM-dd</td>
-                    <td>@tx.Amount:C</td>
-                    <td>@tx.Account.Name</td>
-                    <td>@tx.Category.Name</td>
-                    <td>@tx.Note</td>
-                    <td>
-                        <NavLink class="btn btn-sm btn-secondary"
-                                 href="@($"/transactions/edit/{tx.Id}")">
-                            Edytuj
-                        </NavLink>
-                    </td>
-                </tr>
-            }
+        @foreach (var t in transactions)
+        {
+            <tr>
+                <td>@t.Date.ToString("yyyy-MM-dd")</td>
+                <td class="@(t.Amount >= 0 ? "text-success" : "text-danger")">
+                    @t.Amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pl-PL"))
+                </td>
+                <td>@t.Account.Name</td>
+                <td>@t.Category.Name</td>
+                <td>@t.Note</td>
+                <td>
+                    <button class="btn btn-sm btn-primary"
+                            @onclick='() => Nav.NavigateTo($"/transactions/edit/{t.Id}")'>
+                        Edytuj
+                    </button>
+                    <button class="btn btn-sm btn-danger ms-1"
+                            @onclick="() => Delete(t.Id)">
+                        Usuń
+                    </button>
+                </td>
+            </tr>
+        }
         </tbody>
     </table>
 }
 
 @code {
     private List<Transaction>? transactions;
+    private int? familyId;
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Pobierz zalogowanego użytkownika
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
-                          ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-        // 2. Filtruj transakcje po FamilyId
+        familyId = user.FamilyId 
+                   ?? throw new InvalidOperationException("Użytkownik nie należy do rodziny");
+
         transactions = await Db.Transactions
-            .Where(t => t.FamilyId == user.FamilyId)
-            .Include(t => t.Account)
-            .Include(t => t.Category)
-            .OrderByDescending(t => t.Date)
-            .ToListAsync();
+                               .Include(t => t.Account)
+                               .Include(t => t.Category)
+                               .Where(t => t.FamilyId == familyId)
+                               .OrderByDescending(t => t.Date)
+                               .ToListAsync();
+    }
+
+    private async Task Delete(int id)
+    {
+        var tx = await Db.Transactions.FindAsync(id);
+        if (tx != null)
+        {
+            Db.Transactions.Remove(tx);
+            await Db.SaveChangesAsync();
+            transactions?.RemoveAll(t => t.Id == id);
+        }
     }
 }

@@ -1,7 +1,234 @@
-﻿@page "/"
+﻿@page "/dashboard"
+@using System
+@using System.Linq
+@using System.Collections.Generic
+@using System.Text.Json
+@using System.Threading.Tasks
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using BudgetApp.Models
 
-<PageTitle>Home</PageTitle>
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IJSRuntime JS
 
-<h1>Hello, world!</h1>
+<h3>Dashboard rodzinny</h3>
 
-Welcome to your new app.
+@if (isLoading)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">Saldo łączne</div>
+                <div class="card-body">
+                    <h2>@($"{totalBalance:F2} zł")</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-header">Wpływy (miesiąc)</div>
+                <div class="card-body">
+                    <h4>@($"{monthIn:F2} zł")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-danger mb-3">
+                <div class="card-header">Wydatki (miesiąc)</div>
+                <div class="card-body">
+                    <h4>@($"{monthOut:F2} zł")</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Ostatnie transakcje</h5>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Kto</th>
+                        <th>Kwota</th>
+                        <th>Kategoria</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tx in recentTx)
+                    {
+                        <tr>
+                            <td>@tx.Date.ToString("yyyy-MM-dd")</td>
+                            <td>@tx.UserEmail</td>
+                            <td class="@(tx.Amount >= 0 ? "text-success" : "text-danger")">
+                                @($"{tx.Amount:F2} zł")
+                            </td>
+                            <td>@tx.CategoryName</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h5>Rozkład wydatków wg kategorii</h5>
+            <canvas id="pieChart"></canvas>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h5>Wpływy vs Wydatki (ostatnie 6 mies.)</h5>
+        <canvas id="barChart"></canvas>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool chartsInitialized;
+
+    private decimal totalBalance;
+    private decimal monthIn;
+    private decimal monthOut;
+
+    private List<RecentTx> recentTx = new();
+    private Dictionary<string, decimal> byCategory = new();
+    private List<(DateTime Date, decimal In, decimal Out)> monthly = new();
+
+    class RecentTx
+    {
+        public DateTime Date { get; set; }
+        public string UserEmail { get; set; } = "";
+        public decimal Amount { get; set; }
+        public string CategoryName { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+        var famId = user.FamilyId
+                    ?? throw new InvalidOperationException("Nie należysz do żadnej rodziny");
+
+        // 1. Salda kont
+        var balances = await Db.Accounts
+            .Where(a => a.FamilyId == famId)
+            .Select(a => a.Balance)
+            .ToListAsync();
+        totalBalance = balances.Sum();
+
+        // 2. Bieżący miesiąc
+        var today = DateTime.Today;
+        var monthStart = new DateTime(today.Year, today.Month, 1);
+        var thisMonthTx = await Db.Transactions
+            .Where(t => t.FamilyId == famId && t.Date >= monthStart)
+            .ToListAsync();
+        monthIn = thisMonthTx.Where(t => t.Amount > 0).Sum(t => t.Amount);
+        monthOut = thisMonthTx.Where(t => t.Amount < 0).Sum(t => t.Amount);
+
+        // 3. Ostatnie 5 transakcji (w pamięci, z Include aby uniknąć null)
+        var lastFive = await Db.Transactions
+            .Where(t => t.FamilyId == famId)
+            .Include(t => t.User)
+            .Include(t => t.Category)
+            .OrderByDescending(t => t.Date)
+            .Take(5)
+            .ToListAsync();
+
+        recentTx = lastFive
+            .Select(t => new RecentTx
+                {
+                    Date = t.Date,
+                    Amount = t.Amount,
+                    UserEmail = t.User?.Email ?? "(brak e-mail)",
+                    CategoryName = t.Category?.Name ?? "(brak kategorii)"
+                })
+            .ToList();
+
+        // 4. Rozkład wydatków wg kategorii
+        var spendList = await Db.Transactions
+            .Where(t => t.FamilyId == famId && t.Amount < 0)
+            .Include(t => t.Category)
+            .ToListAsync();
+
+        byCategory = spendList
+            .GroupBy(t => t.Category?.Name ?? "(bez kategorii)")
+            .ToDictionary(
+                g => g.Key,
+                g => -g.Sum(t => t.Amount)
+            );
+
+        // 5. Dane miesięczne za ostatnie 6 miesięcy
+        for (int i = 5; i >= 0; i--)
+        {
+            var m = monthStart.AddMonths(-i);
+            var mEnd = m.AddMonths(1);
+            var slice = await Db.Transactions
+                .Where(t => t.FamilyId == famId && t.Date >= m && t.Date < mEnd)
+                .ToListAsync();
+
+            monthly.Add((
+                m,
+                slice.Where(t => t.Amount > 0).Sum(t => t.Amount),
+                -slice.Where(t => t.Amount < 0).Sum(t => t.Amount)
+            ));
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // uruchamiamy wykresy tylko raz, po zakończeniu ładowania
+        if (firstRender && !isLoading && !chartsInitialized)
+        {
+            chartsInitialized = true;
+            await InitCharts();
+        }
+    }
+
+    private async Task InitCharts()
+    {
+        // Pie
+        var pieLabels = JsonSerializer.Serialize(byCategory.Keys);
+        var pieData = JsonSerializer.Serialize(byCategory.Values);
+        await JS.InvokeVoidAsync("eval", $@"
+          new Chart(document.getElementById('pieChart'), {{
+            type: 'pie',
+            data: {{
+              labels: {pieLabels},
+              datasets: [{{ data: {pieData} }}]
+            }}
+          }});");
+
+        // Bar
+        var barLabels = JsonSerializer.Serialize(
+            monthly.Select(m => m.Date.ToString("MMM yyyy",
+                System.Globalization.CultureInfo.GetCultureInfo("pl-PL")))
+        );
+        var inData = JsonSerializer.Serialize(monthly.Select(m => m.In));
+        var outData = JsonSerializer.Serialize(monthly.Select(m => m.Out));
+
+        await JS.InvokeVoidAsync("eval", $@"
+          new Chart(document.getElementById('barChart'), {{
+            type: 'bar',
+            data: {{
+              labels: {barLabels},
+              datasets: [
+                {{ label: 'Wpływy', data: {inData} }},
+                {{ label: 'Wydatki', data: {outData} }}
+              ]
+            }},
+            options: {{ scales: {{ y: {{ beginAtZero: true }} }} }}
+          }});");
+    }
+}
