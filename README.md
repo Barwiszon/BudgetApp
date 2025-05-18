@@ -1,16 +1,6 @@
 # BudgetApp
 
-**BudgetApp** to nowoczesna aplikacja webowa typu Blazor Server, stworzona z myślą o kompleksowym zarządzaniu finansami rodzinnymi. Użytkownicy mogą założyć „rodzinę” jako wspólną przestrzeń budżetową, zapraszać do niej członków, a następnie wspólnie:
-
-    Zarządzać kontami — dodawać konta bankowe z początkowymi saldami, edytować je oraz usuwać.
-
-    Definiować kategorie — tworzyć, zmieniać i usuwać kategorie wydatków/inwestycji (np. „Zakupy”, „Rachunki”, „Rozrywka”).
-
-    Rejestrować transakcje — wprowadzać wpływy i wydatki, przypisywać je do kont i kategorii, dodawać notatki.
-
-    Monitorować stan — na interaktywnym dashboardzie widoczne jest łączne saldo rodzinne, miesięczne podsumowanie wpływów i wydatków, najnowsze transakcje oraz wykresy (kołowy i słupkowy) generowane przy użyciu Chart.js.
-
-    Współpracować — Owner rodziny może zapraszać nowe osoby poprzez e-mail (tokeny zaproszeniowe), nadawać role (Owner/Member) i zarządzać członkami.
+**BudgetApp** to nowoczesna aplikacja webowa typu Blazor Server, stworzona z myślą o kompleksowym zarządzaniu finansami rodzinnymi.
 
 ---
 
