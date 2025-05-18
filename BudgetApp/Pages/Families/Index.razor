@@ -14,12 +14,39 @@
 {
     <p><em>Ładowanie…</em></p>
 }
-else if (family == null)
+else if (user == null)
 {
-    <!-- jeśli coś poszło nie tak, możesz tu dodać komunikat lub kolejne przekierowanie -->
+    @* nie zalogowany *@
+    
+}
+else if (user.FamilyId == null)
+{
+    @* nie ma rodziny — sprawdź zaproszenia *@
+    @if (invites?.Any() == true)
+    {
+        <h5>Masz zaproszenia:</h5>
+        <ul class="list-group mb-3">
+            @foreach (var inv in invites)
+            {
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Zaproszenie do rodziny „@inv.Family?.Name”
+                    <button class="btn btn-sm btn-success"
+                            @onclick="() => AcceptInvite(inv.Id)">
+                        Akceptuj
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+    else
+    {
+        @* ani rodziny, ani zaproszeń — idź tworzyć *@
+        
+    }
 }
 else
 {
+    @* należy do rodziny *@
     <p>
         <button class="btn btn-primary"
                 @onclick='() => Nav.NavigateTo("/members/invite")'>
@@ -56,33 +83,51 @@ else
 }
 
 @code {
+    private ApplicationUser? user;
     private Family? family;
+    private List<FamilyInvite>? invites;
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(auth.User);
+        user = await UserManager.GetUserAsync(auth.User);
 
         if (user == null)
         {
-            // jeśli nie ma usera, przekieruj do logowania
             Nav.NavigateTo("/Identity/Account/Login", forceLoad: true);
             return;
         }
 
         if (user.FamilyId == null)
+            invites = await Db.Invites.Where(i => i.Email == user.Email).ToListAsync();
+        else
+            family = await Db.Families.Include(f => f.Members)
+                                      .FirstOrDefaultAsync(f => f.Id == user.FamilyId);
+
+        if (user.FamilyId == null && (invites?.Any() ?? false) == false)
         {
-            // jeśli nie należy do rodziny, od razu do tworzenia
             Nav.NavigateTo("/family/create", forceLoad: true);
             return;
         }
 
-        // wczytujemy rodzinę
-        family = await Db.Families
-                         .Include(f => f.Members)
-                         .FirstOrDefaultAsync(f => f.Id == user.FamilyId);
-
         isLoading = false;
+    }
+    private async Task AcceptInvite(string token)
+    {
+        // dokładnie to samo co w OnInitializedAsync powyżej
+        var inv = invites!.FirstOrDefault(i => i.Id == token);
+        if (inv is null) return;
+
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)!;
+
+        user.FamilyId = inv.FamilyId;
+        await UserManager.UpdateAsync(user);
+
+        Db.Invites.Remove(inv);
+        await Db.SaveChangesAsync();
+
+        Nav.NavigateTo("/family");
     }
 }

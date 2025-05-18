@@ -1,50 +1,44 @@
-﻿@page "/members/accept/{token}"
-@using BudgetApp.Data
+﻿@page "/members/accept/{Token}"
 @using BudgetApp.Models
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
-
-@inject ApplicationDbContext Db
+@using Microsoft.EntityFrameworkCore
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext Db
 @inject NavigationManager Nav
 
-<h3>Dołączanie do rodziny</h3>
-
-@if (error != null)
-{
-    <div class="alert alert-danger">@error</div>
-}
-else if (success)
-{
-    <div class="alert alert-success">Dołączono do rodziny!</div>
-}
-else
-{
-    <p>Proszę czekać…</p>
-}
+<h3>Dołączanie do rodziny…</h3>
 
 @code {
-    [Parameter] public string token { get; set; } = "";
-    private string? error;
-    private bool success;
+    [Parameter] public string Token { get; set; } = "";
 
     protected override async Task OnInitializedAsync()
     {
-        var invite = await Db.Invites.FindAsync(token);
-        if (invite == null) { error = "Nieprawidłowy lub wygasły link."; return; }
-
+        // pobierz zalogowanego użytkownika
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
-                   ?? throw new InvalidOperationException("Brak użytkownika.");
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
+        // znajdź zaproszenie
+        var invite = await Db.Invites
+                             .FirstOrDefaultAsync(i => i.Id == Token && i.Email == user.Email);
+        if (invite == null)
+        {
+            // zaproszenie nie istnieje lub nie dla tego maila
+            Nav.NavigateTo("/", forceLoad: true);
+            return;
+        }
+
+        // przypisz FamilyId i zapisz zmiany
         user.FamilyId = invite.FamilyId;
         await UserManager.UpdateAsync(user);
 
-        // opcjonalnie: usuń zaproszenie
+        // usuń zaproszenie
         Db.Invites.Remove(invite);
         await Db.SaveChangesAsync();
 
-        success = true;
+        // przekieruj do podglądu rodziny
+        Nav.NavigateTo("/family");
     }
 }
