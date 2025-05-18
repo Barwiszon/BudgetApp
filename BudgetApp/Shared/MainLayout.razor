@@ -2,7 +2,7 @@
 
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Routing
-@using Microsoft.AspNetCore.Components.Web      <!-- potrzebne dla @onclick -->
+@using Microsoft.AspNetCore.Components.Web      
 @using Microsoft.AspNetCore.Identity
 @using BudgetApp.Models
 
@@ -50,7 +50,6 @@
                                     </li>
                                     <li><hr class="dropdown-divider" /></li>
                                     <li>
-                                        <!-- async lambda zamiast bezpośredniego Logout -->
                                         <button class="dropdown-item"
                                                 @onclick="async () => await Logout()">
                                             Logout
