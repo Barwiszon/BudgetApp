@@ -8,7 +8,8 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @using Microsoft.AspNetCore.Identity
-
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 <h3>Moje konta</h3>
 
 <p>

@@ -1,0 +1,60 @@
+﻿@page "/members"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Nav
+
+<h3>Moje rodziny</h3>
+
+<p>
+    <button class="btn btn-success"
+            @onclick='() => Nav.NavigateTo("/family/create")'>
+        + Nowa rodzina
+    </button>
+</p>
+
+@if (families is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else if (!families.Any())
+{
+    <p>Nie należysz jeszcze do żadnej rodziny.</p>
+}
+else
+{
+    <ul class="list-group">
+        @foreach (var f in families)
+        {
+            <li class="list-group-item d-flex justify-content-between">
+                @f.Name
+                <button class="btn btn-sm btn-primary"
+                        @onclick='() => Nav.NavigateTo($"/family/edit/{f.Id}")'>
+                    Edytuj
+                </button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<Family>? families;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1) pobierz zalogowanego usera
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+
+        // 2) załaduj rodziny, które utworzył albo do których należy
+        families = await Db.Families
+            .Where(f =>
+                f.CreatedByUserId == user.Id
+                || f.Members.Any(m => m.Id == user.Id))
+            .ToListAsync();
+    }
+}

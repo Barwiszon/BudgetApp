@@ -1,5 +1,7 @@
 ﻿@page "/"
 @namespace BudgetApp.Pages
+@using BudgetApp
+
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 <!DOCTYPE html>
 <html lang="en">
@@ -15,7 +17,12 @@
 	<title>BudgetApp</title>
 </head>
 <body>
-	<component type="typeof(App)" render-mode="ServerPrerendered" />
+	<app>
+		<component type="typeof(App)" render-mode="ServerPrerendered" />
+	</app>
+
 	<script src="_framework/blazor.server.js"></script>
+	<!-- dołączamy tu Bootstrap JS -->
+	<script src="lib/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

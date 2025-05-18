@@ -1,11 +1,15 @@
-﻿@page "/families/create"
+﻿@page "/family/create"
 @using BudgetApp.Models
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject ApplicationDbContext Db
 @inject NavigationManager Navigation
-@using Microsoft.AspNetCore.Identity
+
 <h3>Utwórz rodzinę</h3>
 
 <EditForm Model="newFamily" OnValidSubmit="OnCreateFamily">
@@ -14,10 +18,13 @@
 
     <div class="mb-3">
         <label class="form-label">Nazwa rodziny</label>
-        <InputText class="form-control" @bind-Value="newFamily.Name" />
+        <InputText class="form-control"
+                   @bind-Value="newFamily.Name" />
     </div>
     <button class="btn btn-primary" type="submit">Utwórz</button>
-    <button class="btn btn-secondary ms-2" type="button" @onclick=(Cancel) >
+    <button class="btn btn-secondary ms-2"
+            type="button"
+            @onclick="Cancel">
         Anuluj
     </button>
 </EditForm>
@@ -27,24 +34,22 @@
 
     private async Task OnCreateFamily()
     {
-        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(auth.User)
-                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User)
+                          ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
 
-        // uzupełnij pole CreatedByUserId
         newFamily.CreatedByUserId = user.Id;
-
         Db.Families.Add(newFamily);
         await Db.SaveChangesAsync();
 
         user.FamilyId = newFamily.Id;
         await UserManager.UpdateAsync(user);
 
-        Navigation.NavigateTo("/families");
+        Navigation.NavigateTo("/family");
     }
-    public void Cancel()
+
+    private void Cancel()
     {
-        Navigation.NavigateTo("/families");
+        Navigation.NavigateTo("/family");
     }
-    
 }

@@ -1,50 +1,88 @@
-﻿@page "/families"
-
-@using BudgetApp.Models
+﻿@page "/family"
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.EntityFrameworkCore    @* <-- potrzebne dla ToListAsync *@
-
+@using BudgetApp.Models
 @inject AuthenticationStateProvider AuthStateProvider
-@inject UserManager<ApplicationUser>  UserManager
-@inject ApplicationDbContext          Db
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext Db
+@inject NavigationManager Nav
 
-<h3>Moje rodziny</h3>
+<h3>Rodzina: @family?.Name</h3>
 
-@if (families is null)
+@if (isLoading)
 {
     <p><em>Ładowanie…</em></p>
 }
+else if (family == null)
+{
+    <!-- jeśli coś poszło nie tak, możesz tu dodać komunikat lub kolejne przekierowanie -->
+}
 else
 {
-    <ul class="list-group">
-        @foreach (var f in families)
-        {
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                @f.Name
-                <NavLink class="btn btn-sm btn-primary"
-                         href="@($"/families/edit/{f.Id}")">
-                    Edytuj
-                </NavLink>
+    <p>
+        <button class="btn btn-primary"
+                @onclick='() => Nav.NavigateTo("/members/invite")'>
+            <span class="oi oi-person"></span> Zaproś nowego członka
+        </button>
+        <button class="btn btn-secondary ms-2"
+                @onclick='() => Nav.NavigateTo("/family/edit")'>
+            <span class="oi oi-cog"></span> Zarządzaj rodziną
+        </button>
+    </p>
 
-            </li>
-        }
-    </ul>
+    <h5>Członkowie:</h5>
+    <table class="table table-striped">
+        <thead><tr><th>Email</th><th>Rola</th></tr></thead>
+        <tbody>
+            @foreach (var u in family.Members)
+            {
+                <tr>
+                    <td>@u.Email</td>
+                    <td>
+                        @if (u.Id == family.CreatedByUserId)
+                        {
+                            <span class="badge bg-success">Owner</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Member</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
 }
 
 @code {
-    private List<Family>? families;
+    private Family? family;
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        // pobierz zalogowanego usera
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(authState.User);
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
 
-        // załaduj wszystkie rodziny, w których user uczestniczy lub które stworzył
-        families = await Db.Families
-                           .Where(f => f.CreatedByUserId == user.Id
-                                    || f.Members.Any(m => m.Id == user.Id))
-                           .ToListAsync();    // <- wymaga Microsoft.EntityFrameworkCore
+        if (user == null)
+        {
+            // jeśli nie ma usera, przekieruj do logowania
+            Nav.NavigateTo("/Identity/Account/Login", forceLoad: true);
+            return;
+        }
+
+        if (user.FamilyId == null)
+        {
+            // jeśli nie należy do rodziny, od razu do tworzenia
+            Nav.NavigateTo("/family/create", forceLoad: true);
+            return;
+        }
+
+        // wczytujemy rodzinę
+        family = await Db.Families
+                         .Include(f => f.Members)
+                         .FirstOrDefaultAsync(f => f.Id == user.FamilyId);
+
+        isLoading = false;
     }
 }

@@ -1,66 +1,66 @@
-﻿@namespace BudgetApp.Shared
-@using Microsoft.AspNetCore.Components.Routing
-@using Microsoft.AspNetCore.Components.Authorization
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using BudgetApp.Models
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
 
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">BudgetApp</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu"
-                aria-controls="navMenu" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navMenu">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="">Home</NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="counter">Counter</NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="fetchdata">Fetch data</NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="accounts">Accounts</NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="categories">
-                        <span class="oi oi-list-rich" aria-hidden="true"></span> Categories
-                    </NavLink>
-                </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="transactions">
-                        <span class="oi oi-dollar" aria-hidden="true"></span> Transactions
-                    </NavLink>
-                </li>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container">
+    <a class="navbar-brand" href="">BudgetApp</a>
+    <button class="navbar-toggler" type="button"
+            data-bs-toggle="collapse" data-bs-target="#navMenu"
+            aria-controls="navMenu" aria-expanded="false"
+            aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="families">Rodziny</NavLink>
+    <div class="collapse navbar-collapse" id="navMenu">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item"><NavLink class="nav-link" href="">Home</NavLink></li>
+        <li class="nav-item"><NavLink class="nav-link" href="accounts">Accounts</NavLink></li>
+        <li class="nav-item"><NavLink class="nav-link" href="categories">Categories</NavLink></li>
+        <li class="nav-item"><NavLink class="nav-link" href="transactions">Transactions</NavLink></li>
+        <li class="nav-item"><NavLink class="nav-link" href="family">Moja rodzina</NavLink></li>
+      </ul>
+
+      <ul class="navbar-nav">
+        <AuthorizeView>
+          <Authorized>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#"
+                 id="userDropdown" role="button"
+                 data-bs-toggle="dropdown" aria-expanded="false">
+                @context.User.Identity.Name
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                <li>
+                  <NavLink class="dropdown-item" href="Identity/Account/Manage">My account</NavLink>
                 </li>
-                <li class="nav-item">
-                    <NavLink class="nav-link" href="families/create">Nowa rodzina</NavLink>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <!-- async lambda! -->
+                  <button class="dropdown-item" 
+                          @onclick="async () => await Logout()">
+                    Logout
+                  </button>
                 </li>
-
-
-
-            </ul>
-            <ul class="navbar-nav">
-                <AuthorizeView>
-                    <Authorized>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="Areas/Identity/Pages/Account/Manage">Account</NavLink>
-                        </li>
-                    </Authorized>
-                    <NotAuthorized>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="Areas/Identity/Pages/Account/Login">Logowanie</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="/Identity/Account/Register">Rejestracja</NavLink>
-                        </li>
-                    </NotAuthorized>
-                </AuthorizeView>
-            </ul>
-        </div>
+              </ul>
+            </li>
+          </Authorized>
+          <NotAuthorized>
+            <li class="nav-item"><NavLink class="nav-link" href="Identity/Account/Login">Login</NavLink></li>
+            <li class="nav-item"><NavLink class="nav-link" href="Identity/Account/Register">Register</NavLink></li>
+          </NotAuthorized>
+        </AuthorizeView>
+      </ul>
     </div>
+  </div>
 </nav>
+
+@code {
+  private async Task Logout()
+  {
+    await SignInManager.SignOutAsync();
+    Navigation.NavigateTo("/", forceLoad: true);
+  }
+}

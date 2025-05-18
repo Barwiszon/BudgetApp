@@ -8,7 +8,8 @@
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
-
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 <h3>Transakcje</h3>
 
 <p>

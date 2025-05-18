@@ -14,7 +14,8 @@ public class Family
     public ICollection<ApplicationUser> Members { get; set; } = new List<ApplicationUser>();
 
     public int FamilyId { get; set; }
-    
 
-  
+    public ICollection<FamilyInvite> Invites { get; set; } = new List<FamilyInvite>();
+
+
 }

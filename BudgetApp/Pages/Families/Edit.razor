@@ -1,0 +1,109 @@
+﻿@page "/family/edit"
+@using BudgetApp.Data
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Nav
+
+<h3>Zarządzanie rodziną</h3>
+
+@if (family is null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <EditForm Model="family" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Nazwa rodziny</label>
+            <InputText class="form-control" @bind-Value="family.Name" />
+        </div>
+
+        <button class="btn btn-success" type="submit">Zapisz zmiany</button>
+        <button class="btn btn-danger ms-2" @onclick="ConfirmDelete">Usuń rodzinę</button>
+    </EditForm>
+
+    <h5 class="mt-4">Członkowie</h5>
+    <table class="table">
+        <thead><tr><th>Email</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var u in family.Members)
+            {
+                <tr>
+                    <td>@u.Email</td>
+                    <td>
+                        @if (u.Id != family.CreatedByUserId)
+                        {
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="() => RemoveMember(u.Id)">
+                                Usuń
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">Owner</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private Family? family;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+
+        // ładujemy rodzinę z członkami
+        family = await Db.Families
+          .Include(f => f.Members)
+          .FirstOrDefaultAsync(f => f.Id == user.FamilyId)
+          ?? throw new InvalidOperationException("Użytkownik nie należy do rodziny");
+    }
+
+    private async Task Save()
+    {
+        Db.Families.Update(family!);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/families");
+    }
+
+    private async Task RemoveMember(string userId)
+    {
+        // odwiąż użytkownika od rodziny
+        var u = await Db.Users.FindAsync(userId);
+        if (u != null)
+        {
+            u.FamilyId = null;
+            await Db.SaveChangesAsync();
+            family!.Members.Remove(u);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (!await JsRuntime.InvokeAsync<bool>("confirm", $"Czy na pewno usunąć rodzinę “{family!.Name}”?"))
+            return;
+
+        // usuń wszystkie powiązania
+        foreach (var u in family!.Members)
+            u.FamilyId = null;
+        Db.Families.Remove(family!);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/");
+    }
+
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
+}

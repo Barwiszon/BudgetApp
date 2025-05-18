@@ -16,8 +16,10 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 // Identity + domyślne UI + EF Stores
 builder.Services
-    .AddDefaultIdentity<ApplicationUser>(opts => opts.SignIn.RequireConfirmedAccount = false)
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+  .AddDefaultIdentity<ApplicationUser>(opts => opts.SignIn.RequireConfirmedAccount = false)
+  .AddRoles<IdentityRole>()                          // ← to dokładnie dodaje RoleStore
+  .AddEntityFrameworkStores<ApplicationDbContext>()
+  .AddDefaultTokenProviders();
 
 // Blazor Server + uwierzytelnianie
 builder.Services.AddRazorPages();

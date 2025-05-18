@@ -1,75 +1,91 @@
-﻿@using Microsoft.AspNetCore.Components.Routing
+﻿@inherits LayoutComponentBase
+
 @using Microsoft.AspNetCore.Components.Authorization
-@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web      <!-- potrzebne dla @onclick -->
+@using Microsoft.AspNetCore.Identity
+@using BudgetApp.Models
 
-<CascadingAuthenticationState>
-    <div class="d-flex flex-column vh-100">
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-            <div class="container">
-                <a class="navbar-brand" href="">BudgetApp</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navMenu">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="">Home</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="counter">Counter</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="fetchdata">Fetch data</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="accounts">Accounts</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="categories">Categories</NavLink>
-                        </li>
-                        <li class="nav-item">
-                            <NavLink class="nav-link" href="transactions">Transactions</NavLink>
-                        </li>
-                    </ul>
-                    <ul class="navbar-nav">
-                        <AuthorizeView>
-                            <NotAuthorized>
-                                <li class="nav-item">
-                                    <NavLink class="nav-link" href="Identity/Account/Login">Login</NavLink>
-                                </li>
-                            </NotAuthorized>
-                            <Authorized>
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button"
-                                       data-bs-toggle="dropdown" aria-expanded="false">
-                                        @context.User.Identity.Name
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
-                                        <li>
-                                            <NavLink class="dropdown-item" href="Identity/Account/Manage">My account</NavLink>
-                                        </li>
-                                        <li>
-                                            <form class="dropdown-item p-0" method="post" action="Identity/Account/Logout">
-                                                <button type="submit" class="btn btn-link p-0">Log out</button>
-                                            </form>
-                                        </li>
-                                    </ul>
-                                </li>
-                            </Authorized>
-                        </AuthorizeView>
-                    </ul>
-                </div>
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Navigation
+
+<div class="d-flex flex-column vh-100">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="">BudgetApp</a>
+            <button class="navbar-toggler" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#navMenu"
+                    aria-controls="navMenu" aria-expanded="false"
+                    aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navMenu">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><NavLink class="nav-link" href="">Home</NavLink></li>
+                    <li class="nav-item"><NavLink class="nav-link" href="accounts">Accounts</NavLink></li>
+                    <li class="nav-item"><NavLink class="nav-link" href="categories">Categories</NavLink></li>
+                    <li class="nav-item"><NavLink class="nav-link" href="transactions">Transactions</NavLink></li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link" href="family">Moja rodzina</NavLink>
+                    </li>
+                </ul>
+
+                <ul class="navbar-nav">
+                    <AuthorizeView>
+                        <Authorized>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#"
+                                   id="userDropdown" role="button"
+                                   data-bs-toggle="dropdown" aria-expanded="false">
+                                    @context.User.Identity.Name
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                    <li>
+                                        <NavLink class="dropdown-item" href="Identity/Account/Manage">
+                                            My Account
+                                        </NavLink>
+                                    </li>
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <!-- async lambda zamiast bezpośredniego Logout -->
+                                        <button class="dropdown-item"
+                                                @onclick="async () => await Logout()">
+                                            Logout
+                                        </button>
+                                    </li>
+                                </ul>
+                            </li>
+                        </Authorized>
+                        <NotAuthorized>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Identity/Account/Login">Login</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Identity/Account/Register">Register</NavLink>
+                            </li>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </ul>
             </div>
-        </nav>
+        </div>
+    </nav>
 
-        <main class="flex-grow-1 bg-light py-4">
-            <div class="container">
-                @Body
-            </div>
-        </main>
+    <main class="flex-grow-1 bg-light py-4">
+        <div class="container">
+            @Body
+        </div>
+    </main>
 
-        <footer class="bg-secondary text-white text-center py-2">
-            <small>© 2025 BudgetApp</small>
-        </footer>
-    </div>
-</CascadingAuthenticationState>
+    <footer class="bg-secondary text-white text-center py-2">
+        <small>© 2025 BudgetApp</small>
+    </footer>
+</div>
+
+@code {
+    private async Task Logout()
+    {
+        await SignInManager.SignOutAsync();
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

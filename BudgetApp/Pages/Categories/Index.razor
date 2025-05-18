@@ -8,7 +8,8 @@
 @inject UserManager<ApplicationUser> UserManager
 @using Microsoft.AspNetCore.Identity
 <h3>Moje Kategorie</h3>
-
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 <p>
     <NavLink class="btn btn-primary" href="/categories/edit/0">+ Dodaj kategorię</NavLink>
 </p>
