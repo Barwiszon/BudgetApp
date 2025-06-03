@@ -6,12 +6,12 @@
 
 ##Funkcje
 
-###Uwierzytelnianie
+## Uwierzytelnianie
 - Rejestracja i logowanie przy użyciu ASP.NET Core Identity
 - Obsługa użytkowników bez rodziny i należących do rodziny
 - Automatyczne przekierowanie po zalogowaniu (setup konta lub dashboard)
 
-###Zarządzanie rodziną
+## Zarządzanie rodziną
 - Tworzenie i edycja rodziny
 - Role: **Owner** (twórca) i **Member**
 - Członkowie mogą opuścić rodzinę
@@ -19,35 +19,35 @@
   - Usunąć rodzinę
   - Usuwać innych członków
 
-###Kontrola kont i transakcji
+## Kontrola kont i transakcji
 - Tworzenie kont z saldem startowym
 - Obsługa wielu kont przypisanych do rodziny i użytkownika
 - Rejestracja transakcji (wpływy/wydatki)
 - Filtrowanie po dacie
 - Eksport danych do CSV
 
-###Kategorie
+## Kategorie
 - Kategorie globalne (dla rodziny) i prywatne (dla użytkownika)
 - Każda transakcja przypisana do kategorii
 
-###Transakcje cykliczne
+## Transakcje cykliczne
 - Dodawanie wpływów i wydatków powtarzających się co tydzień lub miesiąc
 - Automatyczne generowanie przez `AutoRecurringExpenseService` i `AutoDepositService`
 
-###Dashboard
+## Dashboard
 - Zbiorcze saldo wszystkich kont rodziny
 - Podsumowanie wpływów i wydatków w bieżącym miesiącu
 - Wykres kołowy wydatków według kategorii
 - Lista ostatnich transakcji z widocznością kto dodał (cała rodzina)
 - Ranking wydatków członków
 
-###Skarbonka (savings)
+## Skarbonka
 - Dodawanie celów oszczędnościowych
 - Obsługa depozytów i wypłat
 
 ---
 
-##Schemat bazy danych
+## Schemat bazy danych
 
 | Tabela             | Kluczowe kolumny                                           | Relacje                                                   |
 |--------------------|------------------------------------------------------------|------------------------------------------------------------|
@@ -61,17 +61,17 @@
 
 ---
 
-##Wymagania
+## Wymagania
 
 - [.NET 8.0 SDK](https://dotnet.microsoft.com/download)
 - EF Core (domyślnie SQLite)
 - Chart.js i Bootstrap (dostarczone w wwwroot)
 
 ---
-##Widoki
+## Widoki
 
 
-##Uruchamianie
+## Uruchamianie
 
 ```bash
 git clone https://github.com/Barwiszon/BudgetApp.git
