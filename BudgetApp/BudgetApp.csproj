@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
@@ -8,14 +8,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- diagnostyka EF Core -->
-		<PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.16" />
 
-		<!-- Identity + EF Core stores -->
+
+		<PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.16" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.16" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.16" />
-
-		<!-- EF Core Tools i Design -->
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.16">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
@@ -24,17 +21,9 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
-
-		<!-- Bazy danych -->
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.16" />
-		<!-- jeśli nie potrzebujesz SQL Server, możesz wyrzucić tę linię -->
 		<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.16" />
 		<PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="9.0.0" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <Folder Include="wwwroot\lib\bootstrap\js\" />
-	</ItemGroup>
-
 </Project>
-

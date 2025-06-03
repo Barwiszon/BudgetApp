@@ -1,0 +1,153 @@
+﻿@page "/account/setup"
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+
+<h3>Konfiguracja konta</h3>
+
+@if (!string.IsNullOrEmpty(notification))
+{
+    <div class="alert alert-success">@notification</div>
+}
+
+@if (!hasAccount)
+{
+    <EditForm Model="account" OnValidSubmit="CreateAccount">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Nazwa konta</label>
+            <InputText class="form-control" @bind-Value="account.Name" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Saldo początkowe</label>
+            <InputNumber class="form-control" @bind-Value="account.Balance" required />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Wybierz typ konta</label>
+            <InputRadioGroup @bind-Value="selectedAccountType" class="d-flex flex-column gap-2">
+                <InputRadio class="form-check-input" Value="AccountType.Individual" />
+                <label class="form-check-label">Konto indywidualne</label>
+
+                <InputRadio class="form-check-input" Value="AccountType.CreateFamily" />
+                <label class="form-check-label">Utwórz nową rodzinę</label>
+
+                
+                <InputRadio class="form-check-input" Value="AccountType.JoinFamily" />
+                <label class="form-check-label">Dołącz do rodziny: <strong>@inviteFamilyName</strong></label>
+                
+            </InputRadioGroup>
+        </div>
+
+
+        @if (selectedAccountType == AccountType.CreateFamily)
+        {
+            <div class="mb-3">
+                <label class="form-label">Nazwa rodziny</label>
+                <InputText class="form-control" @bind-Value="newFamily.Name" required />
+            </div>
+        }
+
+        <button class="btn btn-success" type="submit">Utwórz konto</button>
+    </EditForm>
+}
+else
+{
+    <div class="alert alert-warning">
+        Masz już przypisane konto. Możesz je edytować w zakładce <strong>Konta</strong>.
+    </div>
+}
+
+@code {
+    private string notification = "";
+
+    private bool hasInvite = false;
+    private bool hasAccount = false;
+    private string inviteFamilyName = "";
+    private Account account = new();
+    private Family newFamily = new();
+
+    private enum AccountType { Individual, CreateFamily, JoinFamily }
+    private AccountType selectedAccountType = AccountType.Individual;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        if (user == null) return;
+
+        var invite = await Db.Invites.Include(i => i.Family).FirstOrDefaultAsync(i => i.Email == user.Email && !i.Accepted);
+        hasInvite = invite != null;
+        inviteFamilyName = invite?.Family?.Name ?? "";
+
+        hasAccount = await Db.Accounts.AnyAsync(a => a.UserId == user.Id);
+
+        if (!hasAccount)
+        {
+            account = new Account
+            {
+                Name = "",
+                Balance = 0,
+                UserId = user.Id
+            };
+        }
+    }
+
+    private async Task CreateAccount()
+    {
+        if (string.IsNullOrWhiteSpace(account.Name))
+        {
+            notification = "Nazwa konta jest wymagana.";
+            return;
+        }
+
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        if (user == null || hasAccount) return;
+
+        switch (selectedAccountType)
+        {
+            case AccountType.CreateFamily:
+                if (string.IsNullOrWhiteSpace(newFamily.Name))
+                {
+                    notification = "Nazwa rodziny jest wymagana.";
+                    return;
+                }
+                newFamily.CreatedByUserId = user.Id;
+                Db.Families.Add(newFamily);
+                await Db.SaveChangesAsync();
+
+                user.FamilyId = newFamily.Id;
+                await UserManager.UpdateAsync(user);
+                account.FamilyId = newFamily.Id;
+                break;
+
+            case AccountType.JoinFamily:
+                var invite = await Db.Invites.FirstOrDefaultAsync(i => i.Email == user.Email && !i.Accepted);
+                if (invite != null)
+                {
+                    invite.Accepted = true;
+                    user.FamilyId = invite.FamilyId;
+                    await UserManager.UpdateAsync(user);
+                    Db.Invites.Update(invite);
+                    await Db.SaveChangesAsync();
+
+                    account.FamilyId = invite.FamilyId;
+                }
+                break;
+
+            case AccountType.Individual:
+            default:
+                account.FamilyId = null;
+                break;
+        }
+
+        account.UserId = user.Id;
+        Db.Accounts.Add(account);
+        await Db.SaveChangesAsync();
+
+        notification = "Konto zostało utworzone!";
+        hasAccount = true;
+    }
+}

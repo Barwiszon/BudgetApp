@@ -9,6 +9,7 @@
 @inject NavigationManager Nav
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize]
+
 <h3>Nowa kategoria</h3>
 
 @if (category is null)
@@ -27,43 +28,42 @@ else
         </div>
 
         <button class="btn btn-success" type="submit">Dodaj kategorię</button>
-        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">
-            Anuluj
-        </button>
+        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">Anuluj</button>
     </EditForm>
 }
 
 @code {
     private Category? category;
-    private string? currentUserId;
-    private int? currentFamilyId;
+    private ApplicationUser? user;
 
     protected override async Task OnInitializedAsync()
     {
-        // Pobierz bieżącego użytkownika i jego FamilyId
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(auth.User)
-                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
+        user = await UserManager.GetUserAsync(auth.User)
+               ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-        currentUserId = user.Id;
-        currentFamilyId = user.FamilyId;
-
-        // Zainicjuj nową kategorię
         category = new Category
             {
                 Name = "",
-                UserId = currentUserId!,
-                FamilyId = currentFamilyId!.Value
+                UserId = user.Id,
+                FamilyId = user.FamilyId
             };
     }
 
     private async Task Save()
     {
-        if (category is null) return;
+        if (category is null || user is null) return;
 
-        // Upewnij się, że mamy poprawne Id
-        category.UserId = currentUserId!;
-        category.FamilyId = currentFamilyId!.Value;
+
+        category.UserId = user.Id;
+        if (user.FamilyId != null)
+        {
+            category.FamilyId = user.FamilyId;
+        }
+        else
+        {
+            category.FamilyId = null;
+        }
 
         Db.Categories.Add(category);
         await Db.SaveChangesAsync();

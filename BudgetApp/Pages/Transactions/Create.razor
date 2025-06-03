@@ -14,6 +14,10 @@
 {
     <p><em>Ładowanie…</em></p>
 }
+else if (userAccount == null)
+{
+    <div class="alert alert-danger">Nie masz jeszcze konta. Utwórz konto w zakładce <b>Konta</b>.</div>
+}
 else
 {
     <EditForm Model="tx" OnValidSubmit="Save">
@@ -27,16 +31,6 @@ else
         <div class="mb-3">
             <label class="form-label">Kwota</label>
             <InputNumber class="form-control" @bind-Value="tx.Amount" />
-        </div>
-        <div class="mb-3">
-            <label class="form-label">Konto</label>
-            <InputSelect class="form-select" @bind-Value="tx.AccountId">
-                <option value="">— wybierz konto —</option>
-                @foreach (var a in accounts)
-                {
-                    <option value="@a.Id">@a.Name</option>
-                }
-            </InputSelect>
         </div>
         <div class="mb-3">
             <label class="form-label">Kategoria</label>
@@ -54,47 +48,50 @@ else
         </div>
 
         <button class="btn btn-success" type="submit">Dodaj</button>
-        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">
-            Anuluj
-        </button>
+        <button class="btn btn-secondary ms-2" type="button" @onclick="Cancel">Anuluj</button>
     </EditForm>
 }
 
 @code {
     private Transaction? tx;
-    private List<Account> accounts = new();
     private List<Category> categories = new();
+    private Account? userAccount;
     private string userId = "";
     private int familyId;
 
     protected override async Task OnInitializedAsync()
     {
-        // Załaduj usera i FamilyId
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
-        userId = user.Id;
-        familyId = user.FamilyId
-                   ?? throw new InvalidOperationException("Nie należysz do rodziny");
 
-        // Załaduj konta i kategorie z tej rodziny
-        accounts = await Db.Accounts.Where(a => a.FamilyId == familyId).ToListAsync();
-        categories = await Db.Categories.Where(c => c.FamilyId == familyId).ToListAsync();
+        userId = user.Id;
+        familyId = user.FamilyId ?? throw new InvalidOperationException("Nie należysz do rodziny");
+
+        categories = await Db.Categories
+            .Where(c => c.FamilyId == familyId)
+            .ToListAsync();
+
+        userAccount = await Db.Accounts
+            .FirstOrDefaultAsync(a => a.UserId == userId && a.FamilyId == familyId);
 
         tx = new Transaction
             {
-                Date = DateTime.Today,
+                Date = DateTime.Now,
                 UserId = userId,
-                FamilyId = familyId
+                FamilyId = familyId,
+                AccountId = userAccount?.Id ?? 0 
             };
     }
 
     private async Task Save()
     {
-        if (tx == null) return;
-        // pewność nadpisania
+        if (tx == null || userAccount == null)
+            return;
+
         tx.UserId = userId;
         tx.FamilyId = familyId;
+        tx.AccountId = userAccount.Id;
 
         Db.Transactions.Add(tx);
         await Db.SaveChangesAsync();

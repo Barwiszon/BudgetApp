@@ -16,12 +16,10 @@
 }
 else if (user == null)
 {
-    @* nie zalogowany *@
-    
+    <p class="text-danger">Nie jesteś zalogowany.</p>
 }
 else if (user.FamilyId == null)
 {
-    @* nie ma rodziny — sprawdź zaproszenia *@
     @if (invites?.Any() == true)
     {
         <h5>Masz zaproszenia:</h5>
@@ -29,7 +27,7 @@ else if (user.FamilyId == null)
             @foreach (var inv in invites)
             {
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    Zaproszenie do rodziny „@inv.Family?.Name”
+                    Zaproszenie do rodziny „@(inv.Family?.Name ?? "(nazwa niedostępna)")”
                     <button class="btn btn-sm btn-success"
                             @onclick="() => AcceptInvite(inv.Id)">
                         Akceptuj
@@ -40,13 +38,12 @@ else if (user.FamilyId == null)
     }
     else
     {
-        @* ani rodziny, ani zaproszeń — idź tworzyć *@
-        
+        <p>Nie należysz do żadnej rodziny i nie masz zaproszeń.</p>
+        <NavLink class="btn btn-primary" href="/family/create">Utwórz nową rodzinę</NavLink>
     }
 }
 else
 {
-    @* należy do rodziny *@
     <p>
         <button class="btn btn-primary"
                 @onclick='() => Nav.NavigateTo("/members/invite")'>
@@ -60,7 +57,9 @@ else
 
     <h5>Członkowie:</h5>
     <table class="table table-striped">
-        <thead><tr><th>Email</th><th>Rola</th></tr></thead>
+        <thead>
+            <tr><th>Email</th><th>Rola</th></tr>
+        </thead>
         <tbody>
             @foreach (var u in family.Members)
             {
@@ -100,32 +99,35 @@ else
         }
 
         if (user.FamilyId == null)
-            invites = await Db.Invites.Where(i => i.Email == user.Email).ToListAsync();
-        else
-            family = await Db.Families.Include(f => f.Members)
-                                      .FirstOrDefaultAsync(f => f.Id == user.FamilyId);
-
-        if (user.FamilyId == null && (invites?.Any() ?? false) == false)
         {
-            Nav.NavigateTo("/family/create", forceLoad: true);
-            return;
+            invites = await Db.Invites
+                .Include(i => i.Family)
+                .Where(i => i.Email == user.Email)
+                .ToListAsync();
+        }
+        else
+        {
+            family = await Db.Families
+                .Include(f => f.Members)
+                .FirstOrDefaultAsync(f => f.Id == user.FamilyId);
         }
 
         isLoading = false;
     }
+
     private async Task AcceptInvite(string token)
     {
-        // dokładnie to samo co w OnInitializedAsync powyżej
-        var inv = invites!.FirstOrDefault(i => i.Id == token);
-        if (inv is null) return;
+        var invite = invites?.FirstOrDefault(i => i.Id == token);
+        if (invite == null) return;
 
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(auth.User)!;
+        var currentUser = await UserManager.GetUserAsync(auth.User);
+        if (currentUser == null) return;
 
-        user.FamilyId = inv.FamilyId;
-        await UserManager.UpdateAsync(user);
+        currentUser.FamilyId = invite.FamilyId;
+        await UserManager.UpdateAsync(currentUser);
 
-        Db.Invites.Remove(inv);
+        Db.Invites.Remove(invite);
         await Db.SaveChangesAsync();
 
         Nav.NavigateTo("/family");

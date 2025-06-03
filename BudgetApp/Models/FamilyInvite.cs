@@ -1,5 +1,4 @@
-﻿// Models/FamilyInvite.cs
-using System;
+﻿using System;
 
 namespace BudgetApp.Models
 {
@@ -9,8 +8,9 @@ namespace BudgetApp.Models
         public int FamilyId { get; set; }
         public string Email { get; set; } = "";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-        // Nawigacja
+        public DateTime DateCreated { get; set; } = DateTime.UtcNow;
         public Family Family { get; set; } = null!;
+        public bool Accepted { get; set; } = false;
+
     }
 }

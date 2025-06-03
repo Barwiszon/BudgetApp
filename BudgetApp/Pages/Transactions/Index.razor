@@ -7,66 +7,88 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Nav
+@inject BalanceService BalanceService
+@using BudgetApp.Services
 
 <h3>Transakcje</h3>
 
-<p>
-    <button class="btn btn-primary" @onclick='() => Nav.NavigateTo("/transactions/create")'>
-        + Nowa transakcja
-    </button>
-</p>
-
-@if (transactions is null)
+@if (isLoading)
 {
     <p><em>Ładowanie…</em></p>
 }
-else if (!transactions.Any())
+else if (userWithoutFamily)
 {
-    <p>Brak transakcji w tej rodzinie.</p>
+    <div class="alert alert-warning">
+        Musisz dołączyć do rodziny, aby przeglądać transakcje.<br />
+        <a class="btn btn-primary mt-2" href="/family/join">Dołącz do rodziny</a>
+    </div>
 }
 else
 {
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Data</th>
-                <th>Kwota</th>
-                <th>Konto</th>
-                <th>Kategoria</th>
-                <th>Notatka</th>
-                <th>Akcje</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var t in transactions)
-        {
-            <tr>
-                <td>@t.Date.ToString("yyyy-MM-dd")</td>
-                <td class="@(t.Amount >= 0 ? "text-success" : "text-danger")">
-                    @t.Amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pl-PL"))
-                </td>
-                <td>@t.Account.Name</td>
-                <td>@t.Category.Name</td>
-                <td>@t.Note</td>
-                <td>
-                    <button class="btn btn-sm btn-primary"
-                            @onclick='() => Nav.NavigateTo($"/transactions/edit/{t.Id}")'>
-                        Edytuj
-                    </button>
-                    <button class="btn btn-sm btn-danger ms-1"
-                            @onclick="() => Delete(t.Id)">
-                        Usuń
-                    </button>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
+    <p><strong>Saldo łączne kont w rodzinie:</strong> <span class="text-primary">@($"{totalBalance:F2} zł")</span></p>
+
+    <div class="mb-4 d-flex gap-2">
+        <button class="btn btn-primary" @onclick='() => Nav.NavigateTo("/transactions/create")'>
+             Nowa transakcja
+        </button>
+        <button class="btn btn-success" @onclick='() => Nav.NavigateTo("/transactions/add-income")'>
+             Dodaj wpływ
+        </button>
+        <button class="btn btn-danger" @onclick='() => Nav.NavigateTo("/transactions/add-expense")'>
+             Dodaj wydatek
+        </button>
+    </div>
+
+    @if (transactions is null || !transactions.Any())
+    {
+        <p>Brak transakcji w tej rodzinie.</p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Kwota</th>
+                    <th>Konto</th>
+                    <th>Kategoria</th>
+                    <th>Notatka</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in transactions)
+                {
+                    <tr>
+                        <td>@t.Date.ToString("yyyy-MM-dd")</td>
+                        <td class="@(t.Amount >= 0 ? "text-success" : "text-danger")">
+                            @t.Amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("pl-PL"))
+                        </td>
+                        <td>@t.Account.Name</td>
+                        <td>@t.Category?.Name ?? "(brak)"</td>
+                        <td>@t.Note</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary"
+                                    @onclick='() => Nav.NavigateTo($"/transactions/edit/{t.Id}")'>
+                                 Edytuj
+                            </button>
+                            <button class="btn btn-sm btn-danger ms-1"
+                                    @onclick="() => Delete(t.Id)">
+                                 Usuń
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 }
 
 @code {
     private List<Transaction>? transactions;
-    private int? familyId;
+    private decimal totalBalance = 0;
+    private bool isLoading = true;
+    private bool userWithoutFamily = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,15 +96,34 @@ else
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-        familyId = user.FamilyId 
-                   ?? throw new InvalidOperationException("Użytkownik nie należy do rodziny");
+        if (user.FamilyId == null)
+        {
+            userWithoutFamily = true;
+            isLoading = false;
+            return;
+        }
 
+        var familyId = user.FamilyId.Value;
+
+        // Transakcje
         transactions = await Db.Transactions
-                               .Include(t => t.Account)
-                               .Include(t => t.Category)
-                               .Where(t => t.FamilyId == familyId)
-                               .OrderByDescending(t => t.Date)
-                               .ToListAsync();
+            .Include(t => t.Account)
+            .Include(t => t.Category)
+            .Where(t => t.FamilyId == familyId)
+            .OrderByDescending(t => t.Date)
+            .ToListAsync();
+
+        // Konta i suma sald
+        var accounts = await Db.Accounts
+            .Where(a => a.FamilyId == familyId)
+            .ToListAsync();
+
+        foreach (var acc in accounts)
+        {
+            totalBalance += await BalanceService.GetCurrentBalanceAsync(acc.Id);
+        }
+
+        isLoading = false;
     }
 
     private async Task Delete(int id)

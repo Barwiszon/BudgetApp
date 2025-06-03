@@ -1,0 +1,123 @@
+﻿@page "/statistics"
+@using BudgetApp.Services
+@inject ChartDataService ChartDataService
+@inject IJSRuntime JS
+@using System.Text.Json
+
+<h3>📊 Statystyki</h3>
+
+@if (isLoading)
+{
+    <p>Ładowanie danych...</p>
+}
+else if (loadError)
+{
+    <p class="text-danger">Błąd ładowania danych. Sprawdź konsolę.</p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <h5>Wydatki według kategorii</h5>
+            <canvas id="pieChart"></canvas>
+        </div>
+        <div class="col-md-6 mb-4">
+            <h5>Wydatki z ostatnich 30 dni</h5>
+            <canvas id="barChart"></canvas>
+        </div>
+        <div class="col-md-6 mb-4">
+            <h5>Wydatki według użytkownika</h5>
+            <canvas id="userChart"></canvas>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>📈 Statystyki ogólne</h5>
+                    <p>Średni dzienny wydatek: @avgDaily zł</p>
+                    <p>Największy wydatek: @maxExpense zł</p>
+                    <p>Najczęstsza kategoria: @topCategory</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <button class="btn btn-outline-success" @onclick="ExportCsv">📤 Eksportuj dane</button>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool loadError = false;
+
+    private Dictionary<string, double> byCategory = new();
+    private Dictionary<DateTime, double> overTime = new();
+    private Dictionary<string, double> byUser = new();
+
+    private double avgDaily;
+    private double maxExpense;
+    private string topCategory = "-";
+
+    protected override async Task OnInitializedAsync() => await ReloadData();
+
+    private async Task ReloadData()
+    {
+        try
+        {
+            isLoading = true;
+
+            byCategory = await ChartDataService.GetSpendingByCategoryAsync();
+            overTime = await ChartDataService.GetSpendingOverTimeAsync();
+            byUser = await ChartDataService.GetSpendingByUserAsync();
+
+            avgDaily = await ChartDataService.GetAverageDailySpendingAsync();
+            maxExpense = await ChartDataService.GetMaxSpendingAsync();
+            topCategory = await ChartDataService.GetTopCategoryAsync();
+
+            isLoading = false;
+            loadError = false;
+            StateHasChanged();
+            await InitCharts();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Błąd: {ex.Message}");
+            loadError = true;
+            isLoading = false;
+        }
+    }
+
+    private async Task InitCharts()
+    {
+        await JS.InvokeVoidAsync("eval", GeneratePieChart("pieChart", byCategory));
+        await JS.InvokeVoidAsync("eval", GenerateBarChart("barChart", overTime));
+        await JS.InvokeVoidAsync("eval", GeneratePieChart("userChart", byUser));
+    }
+
+    private string GeneratePieChart(string id, Dictionary<string, double> data)
+    {
+        var labels = JsonSerializer.Serialize(data.Keys);
+        var values = JsonSerializer.Serialize(data.Values);
+        return $@"new Chart(document.getElementById('{id}'), {{
+            type: 'pie',
+            data: {{ labels: {labels}, datasets: [{{ data: {values}, backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'] }}] }}
+        }});";
+    }
+
+    private string GenerateBarChart(string id, Dictionary<DateTime, double> data)
+    {
+        var labels = JsonSerializer.Serialize(data.Keys.Select(d => d.ToString("dd MMM")));
+        var values = JsonSerializer.Serialize(data.Values);
+        return $@"new Chart(document.getElementById('{id}'), {{
+            type: 'bar',
+            data: {{ labels: {labels}, datasets: [{{ label: 'Wydatki', data: {values}, backgroundColor: '#007bff' }}] }},
+            options: {{ scales: {{ y: {{ beginAtZero: true }} }} }}
+        }});";
+    }
+
+    private async Task ExportCsv()
+    {
+        var lines = new List<string> { "Data,Kategoria,Wydatek" };
+        foreach (var kv in overTime)
+            lines.Add($"{kv.Key:yyyy-MM-dd},-,{kv.Value}");
+        var csv = string.Join("\n", lines);
+        await JS.InvokeVoidAsync("BlazorDownloadFile", "wydatki.csv", "text/csv", csv);
+    }
+}

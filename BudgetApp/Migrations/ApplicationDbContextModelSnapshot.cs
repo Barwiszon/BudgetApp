@@ -26,7 +26,7 @@ namespace BudgetApp.Migrations
                     b.Property<decimal>("Balance")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("FamilyId")
+                    b.Property<int?>("FamilyId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
@@ -121,7 +121,7 @@ namespace BudgetApp.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("FamilyId")
+                    b.Property<int?>("FamilyId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")
@@ -146,7 +146,13 @@ namespace BudgetApp.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
@@ -163,6 +169,259 @@ namespace BudgetApp.Migrations
                     b.ToTable("Invites");
                 });
 
+            modelBuilder.Entity("BudgetApp.Models.FamilyTransfer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FamilyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FromUserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToUserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("FromUserId");
+
+                    b.HasIndex("ToUserId");
+
+                    b.ToTable("FamilyTransfers");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.PiggyBank", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("GoalDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SavedAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PiggyBanks");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.RecurringExpense", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastExecutionDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastProcessedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RecurringExpenses");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.RecurringIncome", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Frequency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RecurringIncomes");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsContribution", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SavingsGoalId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SavingsGoalId");
+
+                    b.ToTable("SavingsContributions");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsDeposit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SavingsGoalId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SavingsGoalId");
+
+                    b.ToTable("SavingsDeposits");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsGoal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AutoDepositAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AutoDepositEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AutoDepositIntervalDays")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("FamilyId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsShared")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastAutoDepositDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SavedAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("TargetDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SavingsGoals");
+                });
+
             modelBuilder.Entity("BudgetApp.Models.Transaction", b =>
                 {
                     b.Property<int>("Id")
@@ -175,17 +434,23 @@ namespace BudgetApp.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("CategoryId")
+                    b.Property<int?>("CategoryId")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("FamilyId")
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("FamilyId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Note")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -364,9 +629,7 @@ namespace BudgetApp.Migrations
                 {
                     b.HasOne("Family", "Family")
                         .WithMany()
-                        .HasForeignKey("FamilyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FamilyId");
 
                     b.HasOne("BudgetApp.Models.ApplicationUser", "User")
                         .WithMany()
@@ -393,9 +656,7 @@ namespace BudgetApp.Migrations
                 {
                     b.HasOne("Family", "Family")
                         .WithMany()
-                        .HasForeignKey("FamilyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FamilyId");
 
                     b.HasOne("BudgetApp.Models.ApplicationUser", "User")
                         .WithMany()
@@ -419,6 +680,121 @@ namespace BudgetApp.Migrations
                     b.Navigation("Family");
                 });
 
+            modelBuilder.Entity("BudgetApp.Models.FamilyTransfer", b =>
+                {
+                    b.HasOne("Family", "Family")
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BudgetApp.Models.ApplicationUser", "FromUser")
+                        .WithMany()
+                        .HasForeignKey("FromUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BudgetApp.Models.ApplicationUser", "ToUser")
+                        .WithMany()
+                        .HasForeignKey("ToUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Family");
+
+                    b.Navigation("FromUser");
+
+                    b.Navigation("ToUser");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.PiggyBank", b =>
+                {
+                    b.HasOne("BudgetApp.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.RecurringExpense", b =>
+                {
+                    b.HasOne("BudgetApp.Models.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BudgetApp.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.RecurringIncome", b =>
+                {
+                    b.HasOne("BudgetApp.Models.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BudgetApp.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsContribution", b =>
+                {
+                    b.HasOne("BudgetApp.Models.SavingsGoal", "SavingsGoal")
+                        .WithMany("Contributions")
+                        .HasForeignKey("SavingsGoalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SavingsGoal");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsDeposit", b =>
+                {
+                    b.HasOne("BudgetApp.Models.SavingsGoal", "SavingsGoal")
+                        .WithMany("Deposits")
+                        .HasForeignKey("SavingsGoalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SavingsGoal");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsGoal", b =>
+                {
+                    b.HasOne("Family", "Family")
+                        .WithMany()
+                        .HasForeignKey("FamilyId");
+
+                    b.HasOne("BudgetApp.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Family");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("BudgetApp.Models.Transaction", b =>
                 {
                     b.HasOne("BudgetApp.Models.Account", "Account")
@@ -429,15 +805,11 @@ namespace BudgetApp.Migrations
 
                     b.HasOne("BudgetApp.Models.Category", "Category")
                         .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("CategoryId");
 
                     b.HasOne("Family", "Family")
                         .WithMany()
-                        .HasForeignKey("FamilyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("FamilyId");
 
                     b.HasOne("BudgetApp.Models.ApplicationUser", "User")
                         .WithMany()
@@ -519,6 +891,13 @@ namespace BudgetApp.Migrations
             modelBuilder.Entity("BudgetApp.Models.ApplicationUser", b =>
                 {
                     b.Navigation("FamiliesCreated");
+                });
+
+            modelBuilder.Entity("BudgetApp.Models.SavingsGoal", b =>
+                {
+                    b.Navigation("Contributions");
+
+                    b.Navigation("Deposits");
                 });
 
             modelBuilder.Entity("Family", b =>

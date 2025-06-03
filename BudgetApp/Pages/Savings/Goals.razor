@@ -1,0 +1,271 @@
+﻿@page "/savings"
+@attribute [Authorize]
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IJSRuntime JSRuntime
+
+<h3>Moje cele oszczędnościowe</h3>
+
+@if (user == null)
+{
+    <p><em>Ładowanie użytkownika...</em></p>
+}
+else
+{
+    <EditForm Model="@newGoal" OnValidSubmit="@AddGoal">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Nazwa celu</label>
+            <InputText class="form-control" @bind-Value="newGoal.Name" />
+        </div>
+
+        <div class="mb-3">
+            <label>Kwota docelowa (PLN)</label>
+            <InputNumber class="form-control" @bind-Value="newGoal.TargetAmount" />
+        </div>
+
+        <div class="mb-3">
+            <label>Termin realizacji (opcjonalnie)</label>
+            <InputDate class="form-control" @bind-Value="newGoal.TargetDate" />
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="newGoal.IsShared" />
+            <label class="form-check-label">Wspólny cel rodzinny</label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Dodaj cel</button>
+    </EditForm>
+    @if (editingGoal != null)
+    {
+        <EditForm Model="@editingGoal" OnValidSubmit="@SaveEditedGoal">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label>Nazwa celu</label>
+                <InputText class="form-control" @bind-Value="editingGoal.Name" />
+            </div>
+
+            <div class="mb-3">
+                <label>Kwota docelowa (PLN)</label>
+                <InputNumber class="form-control" @bind-Value="editingGoal.TargetAmount" />
+            </div>
+
+            <div class="mb-3">
+                <label>Termin realizacji (opcjonalnie)</label>
+                <InputDate class="form-control" @bind-Value="editingGoal.TargetDate" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="editingGoal.IsShared" />
+                <label class="form-check-label">Wspólny cel rodzinny</label>
+            </div>
+            <div class="form-check mb-3">
+                <InputCheckbox class="form-check-input" @bind-Value="newGoal.AutoDepositEnabled" />
+                <label class="form-check-label">Automatyczne wpłaty</label>
+            </div>
+
+            @if (newGoal.AutoDepositEnabled)
+            {
+                <div class="mb-3">
+                    <label>Kwota automatycznej wpłaty (PLN)</label>
+                    <InputNumber class="form-control" @bind-Value="newGoal.AutoDepositAmount" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Interwał wpłat (dni)</label>
+                    <InputNumber class="form-control" @bind-Value="newGoal.AutoDepositIntervalDays" />
+                </div>
+            }
+
+            <button type="submit" class="btn btn-success me-2">💾 Zapisz zmiany</button>
+            <button type="button" class="btn btn-secondary" @onclick="() => editingGoal = null">Anuluj</button>
+        </EditForm>
+    }
+    <hr />
+
+    @if (goalBindings.Any())
+    {
+        <table class="table table-bordered mt-3">
+            <thead>
+                <tr>
+                    <th>Nazwa</th>
+                    <th>Odłożono</th>
+                    <th>Cel</th>
+                    <th>Postęp</th>
+                    <th>Wpłata</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var binding in goalBindings)
+                {
+                    var g = binding.Goal;
+                    <tr>
+                        <td>@g.Name</td>
+                        <td>@g.SavedAmount.ToString("C")</td>
+                        <td>@g.TargetAmount.ToString("C")</td>
+                        <td>
+                            @{
+                                var percent = g.TargetAmount == 0 ? 0 : (g.SavedAmount / g.TargetAmount) * 100;
+                            }
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width:@percent%" aria-valuenow="@percent" aria-valuemin="0" aria-valuemax="100">
+                                    @percent.ToString("0.0")%
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <InputNumber @bind-Value="binding.DepositAmount" class="form-control form-control-sm mb-1" />
+                            <button class="btn btn-sm btn-primary mt-1" @onclick="@(() => AddDeposit(binding))">Wpłać</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>Brak celów. Dodaj pierwszy cel powyżej.</p>
+    }
+}
+@code {
+    private ApplicationUser? user;
+    private List<SavingsGoal> goals = new();
+    private SavingsGoal newGoal = new();
+    private List<GoalDepositBinding> goalBindings = new();
+
+    private class GoalDepositBinding
+    {
+        public SavingsGoal Goal { get; set; } = new();
+        public decimal DepositAmount { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = await UserManager.GetUserAsync(auth.User);
+
+        if (user != null)
+        {
+            var familyId = user.FamilyId;
+
+            goals = await Db.SavingsGoals
+                .Where(g => g.UserId == user.Id || (g.IsShared && g.FamilyId == familyId))
+                .Include(g => g.Deposits)
+                .ToListAsync();
+
+            goalBindings = goals.Select(g => new GoalDepositBinding { Goal = g }).ToList();
+        }
+    }
+
+    private async Task AddGoal()
+    {
+        if (user == null) return;
+
+        newGoal.SavedAmount = 0;
+
+        if (newGoal.IsShared)
+        {
+            newGoal.UserId = user.Id;
+            newGoal.FamilyId = user.FamilyId;
+        }
+        else
+        {
+            newGoal.UserId = user.Id;
+            newGoal.FamilyId = null;
+        }
+
+        Db.SavingsGoals.Add(newGoal);
+        await Db.SaveChangesAsync();
+
+        goals.Add(newGoal);
+        goalBindings.Add(new GoalDepositBinding { Goal = newGoal });
+
+        newGoal = new SavingsGoal();
+    }
+
+    private async Task AddDeposit(GoalDepositBinding binding)
+    {
+        if (binding.DepositAmount <= 0)
+            return;
+
+        var deposit = new SavingsDeposit
+            {
+                SavingsGoalId = binding.Goal.Id,
+                Amount = binding.DepositAmount,
+                Date = DateTime.Now
+            };
+
+        Db.SavingsDeposits.Add(deposit);
+        binding.Goal.SavedAmount += binding.DepositAmount;
+        binding.DepositAmount = 0;
+
+        await Db.SaveChangesAsync();
+    }
+    private SavingsGoal? editingGoal = null;
+
+    private void EditGoal(SavingsGoal goal)
+    {
+        editingGoal = new SavingsGoal
+            {
+                Id = goal.Id,
+                Name = goal.Name,
+                TargetAmount = goal.TargetAmount,
+                TargetDate = goal.TargetDate,
+                IsShared = goal.IsShared,
+                UserId = goal.UserId,
+                FamilyId = goal.FamilyId
+            };
+    }
+
+    private async Task SaveEditedGoal()
+    {
+        if (editingGoal == null) return;
+
+        var goal = await Db.SavingsGoals.FindAsync(editingGoal.Id);
+        if (goal != null)
+        {
+            goal.Name = editingGoal.Name;
+            goal.TargetAmount = editingGoal.TargetAmount;
+            goal.TargetDate = editingGoal.TargetDate;
+            goal.IsShared = editingGoal.IsShared;
+
+            await Db.SaveChangesAsync();
+
+
+            var index = goals.FindIndex(g => g.Id == goal.Id);
+            if (index != -1)
+            {
+                goals[index] = goal;
+                goalBindings[index].Goal = goal;
+            }
+
+            editingGoal = null;
+        }
+    }
+
+    private async Task DeleteGoal(SavingsGoal goal)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", $"Czy na pewno chcesz usunąć cel {goal.Name}?");
+        if (confirm)
+        {
+            Db.SavingsGoals.Remove(goal);
+            await Db.SaveChangesAsync();
+
+            goals.Remove(goal);
+            var binding = goalBindings.FirstOrDefault(b => b.Goal.Id == goal.Id);
+            if (binding != null)
+            {
+                goalBindings.Remove(binding);
+            }
+        }
+    }
+
+}

@@ -5,7 +5,6 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.Identity.UI.Services
-
 @inject ApplicationDbContext Db
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
@@ -14,60 +13,92 @@
 
 <h3>Zaproszenie nowego członka</h3>
 
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
 <EditForm Model="model" OnValidSubmit="HandleInvite">
-  <DataAnnotationsValidator />
-  <ValidationSummary />
+    <DataAnnotationsValidator />
+    <ValidationSummary />
 
-  <div class="mb-3">
-    <label class="form-label">Email</label>
-    <InputText @bind-Value="model.Email" class="form-control" />
-  </div>
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText @bind-Value="model.Email" class="form-control" />
+    </div>
 
-  <button type="submit" class="btn btn-primary">Wyślij zaproszenie</button>
-    <button type="button" class="btn btn-secondary ms-2"
-            @onclick='() => Nav.NavigateTo("/family")'>
+    <button type="submit" class="btn btn-primary">Wyślij zaproszenie</button>
+    <button type="button" class="btn btn-secondary ms-2" @onclick='() => Nav.NavigateTo("/family")'>
         Anuluj
     </button>
-
-
 </EditForm>
 
 @code {
-  private class InviteModel
-  {
-    [Required, EmailAddress]
-    public string Email { get; set; } = "";
-  }
+    private class InviteModel
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = "";
+    }
 
-  private InviteModel model = new();
-  private int familyId;
+    private InviteModel model = new();
+    private int familyId;
+    private string errorMessage = "";
 
-  protected override async Task OnInitializedAsync()
-  {
-    var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-    var user = await UserManager.GetUserAsync(auth.User)
-               ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
-    familyId = user.FamilyId
-               ?? throw new InvalidOperationException("Użytkownik nie należy do rodziny");
-  }
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User)
+                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+        familyId = user.FamilyId
+                   ?? throw new InvalidOperationException("Użytkownik nie należy do rodziny.");
+    }
 
-  private async Task HandleInvite()
-  {
-    // 1) Stwórz encję
-    var invite = new FamilyInvite {
-      FamilyId  = familyId,
-      Email     = model.Email
-    };
-    Db.Invites.Add(invite);
-    await Db.SaveChangesAsync();
+    private async Task HandleInvite()
+    {
+        errorMessage = "";
 
-    // 2) Wyślij maila
-    var url = Nav.BaseUri.TrimEnd('/') + $"/members/accept/{invite.Id}";
-    await EmailSender.SendEmailAsync(
-      model.Email,
-      "Zaproszenie do rodziny",
-      $"Kliknij <a href=\"{url}\">tutaj</a>, aby dołączyć.");
 
-    Nav.NavigateTo("/members");
-  }
+        var existingUser = await UserManager.FindByEmailAsync(model.Email);
+        if (existingUser is null)
+        {
+            errorMessage = "Podany e-mail nie należy do żadnego zarejestrowanego użytkownika.";
+            return;
+        }
+
+
+        if (existingUser.FamilyId != null)
+        {
+            errorMessage = "Ten użytkownik już należy do rodziny.";
+            return;
+        }
+
+        var alreadyInvited = await Db.Invites
+            .AnyAsync(i => i.Email == model.Email && i.FamilyId == familyId);
+
+        if (alreadyInvited)
+        {
+            errorMessage = "Ten użytkownik został już zaproszony.";
+            return;
+        }
+
+
+        var invite = new FamilyInvite
+            {
+                FamilyId = familyId,
+                Email = model.Email,
+                DateCreated = DateTime.UtcNow
+            };
+
+        Db.Invites.Add(invite);
+        await Db.SaveChangesAsync();
+
+
+        var url = Nav.BaseUri.TrimEnd('/') + $"/members/accept/{invite.Id}";
+        await EmailSender.SendEmailAsync(
+            model.Email,
+            "Zaproszenie do rodziny",
+            $"Kliknij <a href=\"{url}\">tutaj</a>, aby dołączyć do rodziny.");
+
+        Nav.NavigateTo("/members");
+    }
 }

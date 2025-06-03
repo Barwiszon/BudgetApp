@@ -1,0 +1,306 @@
+﻿@page "/savingses"
+@attribute [Authorize]
+@using BudgetApp.Models
+@using System.Globalization
+@inject ApplicationDbContext Db
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<h3 class="mb-4">Moje cele i skarbonki</h3>
+
+@if (!string.IsNullOrEmpty(notification))
+{
+    <div class="alert alert-success">@notification</div>
+}
+
+@if (achievedGoals.Any())
+{
+    <div class="alert alert-info">
+        <strong>Osiągnięte cele:</strong>
+        @foreach (var g in achievedGoals)
+        {
+            <div>
+                <strong>@g.Name</strong>
+                <button class="btn btn-sm btn-success ms-2" @onclick="() => CompleteGoal(g)">Zrealizuj</button>
+                <button class="btn btn-sm btn-warning ms-2" @onclick="() => RefundGoal(g)">Zrezygnuj</button>
+            </div>
+        }
+    </div>
+}
+
+@if (isLoading)
+{
+    <p><em>Trwa ładowanie danych...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-end mb-3">
+        <button class="btn btn-primary me-2" @onclick='() => Navigation.NavigateTo("/savings")'> Dodaj cel</button>
+        <button class="btn btn-success" @onclick='() => Navigation.NavigateTo("/piggybanks/create")'> Dodaj skarbonkę</button>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Cele oszczędnościowe</h5>
+            @if (goals.Any())
+            {
+                @foreach (var goal in goals)
+                {
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5>@goal.Name</h5>
+                            <p>
+                                Odłożono: @goal.SavedAmount.ToString("C") / Cel: @goal.TargetAmount.ToString("C")
+                                @if (goal.SavedAmount >= goal.TargetAmount)
+                                {
+                                    <span class="badge bg-success ms-2">Cel osiągnięty!</span>
+                                }
+                            </p>
+                            <div class="progress">
+                                <div class="progress-bar" style="width:@(goal.TargetAmount == 0 ? 0 : (goal.SavedAmount / goal.TargetAmount * 100).ToString("0.##", CultureInfo.InvariantCulture))%"></div>
+
+                            </div>
+                            @if (goal.SavedAmount < goal.TargetAmount)
+                            {
+                                <div class="input-group mt-2">
+                                    <InputNumber @bind-Value="goal.DepositAmount" class="form-control" />
+                                    <button class="btn btn-sm btn-primary" @onclick="() => AddToGoal(goal)"> Dodaj</button>
+                                </div>
+                            }
+                            <button class="btn btn-danger btn-sm mt-2" @onclick="() => RemoveGoal(goal)"> Usuń cel</button>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <p>Brak celów.</p>
+            }
+        </div>
+
+        <div class="col-md-6">
+            <h5>Skarbonki</h5>
+            @if (piggies.Any())
+            {
+                @foreach (var piggy in piggies)
+                {
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5>@piggy.Name</h5>
+                            <p>Odłożono: @piggy.SavedAmount.ToString("C") / Cel: @piggy.TargetAmount.ToString("C")</p>
+                            <p class="text-muted">@piggy.Note</p>
+                            <div class="progress">
+                                <div class="progress-bar bg-success" style="width:@(piggy.TargetAmount == 0 ? 0 : (piggy.SavedAmount / piggy.TargetAmount * 100).ToString("0.##", CultureInfo.InvariantCulture))%"></div>
+
+                            </div>
+                            <div class="input-group mt-2">
+                                <InputNumber @bind-Value="piggy.DepositAmount" class="form-control" />
+                                <button class="btn btn-sm btn-primary" @onclick="() => AddToPiggy(piggy)"> Dodaj</button>
+                            </div>
+                            <div class="input-group mt-2">
+                                <InputNumber @bind-Value="piggy.WithdrawAmount" class="form-control" />
+                                <button class="btn btn-sm btn-warning" @onclick="() => WithdrawFromPiggy(piggy)"> Wypłać środki</button>
+                            </div>
+                            <button class="btn btn-danger btn-sm mt-2" @onclick="() => RemovePiggy(piggy)">❌ Usuń skarbonkę</button>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <p>Brak skarbonek.</p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private List<SavingsGoal> goals = new();
+    private List<SavingsGoal> achievedGoals = new();
+    private List<PiggyBank> piggies = new();
+    private decimal userBalance = 0;
+    private string? notification;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+        if (user is null) return;
+
+        var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        if (account != null) userBalance = account.Balance;
+
+        goals = await Db.SavingsGoals
+            .Where(g => g.UserId == user.Id || (g.IsShared && g.FamilyId == user.FamilyId))
+            .Include(g => g.Contributions)
+            .ToListAsync();
+
+        achievedGoals = goals.Where(g => g.SavedAmount >= g.TargetAmount).ToList();
+
+        foreach (var g in goals) g.DepositAmount = 0;
+
+        piggies = await Db.PiggyBanks
+            .Where(p => p.UserId == user.Id)
+            .ToListAsync();
+
+        foreach (var p in piggies)
+        {
+            p.DepositAmount = 0;
+            p.WithdrawAmount = 0;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task AddToGoal(SavingsGoal goal)
+    {
+        if (goal.DepositAmount <= 0 || goal.DepositAmount > userBalance) return;
+
+        var amountToAdd = goal.DepositAmount;
+
+        goal.SavedAmount += amountToAdd;
+        userBalance -= amountToAdd;
+        goal.DepositAmount = 0;
+
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        if (account != null)
+        {
+            account.Balance = userBalance;
+            Db.Accounts.Update(account);
+        }
+
+        var contribution = new SavingsContribution
+            {
+                UserId = user.Id,
+                SavingsGoalId = goal.Id,
+                Amount = amountToAdd,
+                Date = DateTime.Now
+            };
+        Db.SavingsContributions.Add(contribution);
+
+        Db.SavingsGoals.Update(goal);
+        await Db.SaveChangesAsync();
+
+        notification = $"Dodano środki do celu '{goal.Name}'";
+
+        if (goal.SavedAmount >= goal.TargetAmount && !achievedGoals.Contains(goal))
+            achievedGoals.Add(goal);
+    }
+
+    private async Task CompleteGoal(SavingsGoal goal)
+    {
+        Db.SavingsGoals.Remove(goal);
+        goals.Remove(goal);
+        achievedGoals.Remove(goal);
+        await Db.SaveChangesAsync();
+        notification = $"Zrealizowano cel '{goal.Name}' i usunięto środki.";
+    }
+
+    private async Task RefundGoal(SavingsGoal goal)
+    {
+        foreach (var contribution in goal.Contributions)
+        {
+            var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == contribution.UserId);
+            if (account != null)
+            {
+                account.Balance += contribution.Amount;
+                Db.Accounts.Update(account);
+            }
+        }
+
+        Db.SavingsContributions.RemoveRange(goal.Contributions);
+        Db.SavingsGoals.Remove(goal);
+        goals.Remove(goal);
+        achievedGoals.Remove(goal);
+        await Db.SaveChangesAsync();
+
+        notification = $"Zrezygnowano z realizacji celu '{goal.Name}' – środki zwrócone do użytkowników.";
+    }
+
+    private async Task AddToPiggy(PiggyBank piggy)
+    {
+        if (piggy.DepositAmount <= 0 || piggy.DepositAmount > userBalance) return;
+
+        piggy.SavedAmount += piggy.DepositAmount;
+        userBalance -= piggy.DepositAmount;
+        piggy.DepositAmount = 0;
+
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        if (account != null)
+        {
+            account.Balance = userBalance;
+            Db.Accounts.Update(account);
+        }
+
+        Db.PiggyBanks.Update(piggy);
+        await Db.SaveChangesAsync();
+
+        notification = $"Dodano środki do skarbonki '{piggy.Name}'";
+    }
+
+    private async Task WithdrawFromPiggy(PiggyBank piggy)
+    {
+        if (piggy is null || piggy.WithdrawAmount <= 0 || piggy.WithdrawAmount > piggy.SavedAmount)
+        {
+            notification = "Nieprawidłowa kwota wypłaty.";
+            return;
+        }
+
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        if (account == null)
+        {
+            notification = "Nie znaleziono konta użytkownika.";
+            return;
+        }
+
+        decimal withdrawAmount = piggy.WithdrawAmount;
+
+        piggy.SavedAmount -= withdrawAmount;
+        piggy.WithdrawAmount = 0;
+        Db.PiggyBanks.Update(piggy);
+
+        account.Balance += withdrawAmount;
+        userBalance = account.Balance;
+        Db.Accounts.Update(account);
+
+        await Db.SaveChangesAsync();
+
+        notification = $"Wypłacono {withdrawAmount:C} ze skarbonki '{piggy.Name}'.";
+    }
+
+    private async Task RemoveGoal(SavingsGoal goal)
+    {
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        if (account != null)
+        {
+            account.Balance += goal.SavedAmount;
+            Db.Accounts.Update(account);
+        }
+
+        Db.SavingsGoals.Remove(goal);
+        goals.Remove(goal);
+        achievedGoals.Remove(goal);
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task RemovePiggy(PiggyBank piggy)
+    {
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+        var account = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        if (account != null)
+        {
+            account.Balance += piggy.SavedAmount;
+            Db.Accounts.Update(account);
+        }
+
+        Db.PiggyBanks.Remove(piggy);
+        piggies.Remove(piggy);
+        await Db.SaveChangesAsync();
+    }
+}

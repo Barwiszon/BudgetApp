@@ -26,7 +26,14 @@ else
         </div>
 
         <button class="btn btn-success" type="submit">Zapisz zmiany</button>
-        <button class="btn btn-danger ms-2" @onclick="ConfirmDelete">Usuń rodzinę</button>
+        @if (isOwner)
+        {
+            <button class="btn btn-danger ms-2" @onclick="ConfirmDelete">Usuń rodzinę</button>
+        }
+        else
+        {
+            <span class="ms-2 text-muted">Tylko właściciel może usunąć rodzinę</span>
+        }
     </EditForm>
 
     <h5 class="mt-4">Członkowie</h5>
@@ -38,14 +45,14 @@ else
                 <tr>
                     <td>@u.Email</td>
                     <td>
-                        @if (u.Id != family.CreatedByUserId)
+                        @if (isOwner && u.Id != currentUserId && u.Id != family.CreatedByUserId)
                         {
                             <button class="btn btn-sm btn-outline-danger"
                                     @onclick="() => RemoveMember(u.Id)">
                                 Usuń
                             </button>
                         }
-                        else
+                        else if (u.Id == family.CreatedByUserId)
                         {
                             <span class="badge bg-success">Owner</span>
                         }
@@ -54,10 +61,14 @@ else
             }
         </tbody>
     </table>
+
+    <button class="btn btn-outline-danger" @onclick="LeaveFamily">Opuść rodzinę</button>
 }
 
 @code {
     private Family? family;
+    private bool isOwner = false;
+    private string currentUserId = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -65,44 +76,69 @@ else
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-        // ładujemy rodzinę z członkami
+        currentUserId = user.Id;
+
         family = await Db.Families
           .Include(f => f.Members)
           .FirstOrDefaultAsync(f => f.Id == user.FamilyId)
           ?? throw new InvalidOperationException("Użytkownik nie należy do rodziny");
+
+        isOwner = user.Id == family.CreatedByUserId;
     }
 
     private async Task Save()
     {
         Db.Families.Update(family!);
         await Db.SaveChangesAsync();
-        Nav.NavigateTo("/families");
+        Nav.NavigateTo("/family");
     }
 
     private async Task RemoveMember(string userId)
     {
-        // odwiąż użytkownika od rodziny
+        if (!isOwner)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "Tylko właściciel może usuwać członków rodziny.");
+            return;
+        }
+
         var u = await Db.Users.FindAsync(userId);
-        if (u != null)
+        if (u != null && u.Id != family!.CreatedByUserId)
         {
             u.FamilyId = null;
             await Db.SaveChangesAsync();
-            family!.Members.Remove(u);
+            family.Members.Remove(u);
             StateHasChanged();
         }
     }
 
     private async Task ConfirmDelete()
     {
+        if (!isOwner)
+        {
+            await JsRuntime.InvokeVoidAsync("alert", "Tylko właściciel rodziny może ją usunąć.");
+            return;
+        }
+
         if (!await JsRuntime.InvokeAsync<bool>("confirm", $"Czy na pewno usunąć rodzinę “{family!.Name}”?"))
             return;
 
-        // usuń wszystkie powiązania
         foreach (var u in family!.Members)
             u.FamilyId = null;
         Db.Families.Remove(family!);
         await Db.SaveChangesAsync();
         Nav.NavigateTo("/");
+    }
+
+    private async Task LeaveFamily()
+    {
+        var user = await UserManager.GetUserAsync((await AuthStateProvider.GetAuthenticationStateAsync()).User);
+
+        if (user != null && user.FamilyId != null)
+        {
+            user.FamilyId = null;
+            await Db.SaveChangesAsync();
+            Nav.NavigateTo("/");
+        }
     }
 
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;

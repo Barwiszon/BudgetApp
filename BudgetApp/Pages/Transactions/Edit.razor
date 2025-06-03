@@ -73,14 +73,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Pobierz zalogowanego usera i jego FamilyId
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
         currentUserId = user.Id;
         currentFamilyId = user.FamilyId;
 
-        // 2. Załaduj dropdowny tylko dla tej rodziny
+
         accounts = await Db.Accounts
                              .Where(a => a.FamilyId == currentFamilyId)
                              .ToListAsync();
@@ -88,12 +87,12 @@ else
                              .Where(c => c.FamilyId == currentFamilyId)
                              .ToListAsync();
 
-        // 3. Przygotuj model
+
         if (Id == 0)
         {
             tx = new Transaction
                 {
-                    Date = DateTime.Today,
+                    Date = DateTime.Now,
                     FamilyId = currentFamilyId!.Value,
                     UserId = currentUserId!
                 };
@@ -104,7 +103,6 @@ else
                          .FirstOrDefaultAsync(t => t.Id == Id && t.FamilyId == currentFamilyId);
             if (tx == null)
             {
-                // nie ma dostępu do tej transakcji – cofnij
                 Nav.NavigateTo("/transactions");
             }
         }
@@ -114,7 +112,6 @@ else
     {
         if (tx == null) return;
 
-        // upewnij się, że relacje są poprawne
         tx.FamilyId = currentFamilyId!.Value;
         tx.UserId = currentUserId!;
 

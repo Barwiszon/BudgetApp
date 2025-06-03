@@ -3,68 +3,254 @@
 @using BudgetApp.Data
 @using BudgetApp.Models
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Authorization
 @inject ApplicationDbContext Db
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
-@using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.Authorization
+@inject BalanceService BalanceService
+@inject IJSRuntime JS
+@using BudgetApp.Services
 @attribute [Authorize]
-<h3>Moje konta</h3>
 
-<p>
-    <NavLink class="btn btn-success" href="/accounts/create">Dodaj konto</NavLink>
-</p>
-
-@if (accounts is null)
+@if (isLoading)
 {
     <p><em>Ładowanie…</em></p>
 }
-else if (!accounts.Any())
-{
-    <p>Brak kont w Twojej rodzinie.</p>
-}
 else
 {
-    <table class="table">
-        <thead>
-            <tr><th>Nazwa</th><th>Saldo</th><th>Akcje</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var a in accounts)
-            {
-                <tr>
-                    <td>@a.Name</td>
-                    <td>@a.Balance zł</td>
-                    <td>
-                        <NavLink class="btn btn-sm btn-primary"
-                                 href="@($"/accounts/edit/{a.Id}")">
-                            Edytuj
-                        </NavLink>
-                        <NavLink class="btn btn-sm btn-danger"
-                                 href="@($"/accounts/delete/{a.Id}")">
-                            Usuń
-                        </NavLink>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2 class="fw-bold">Witaj, @accountName!</h2>
+        </div>
+        <div class="text-end">
+            <p class="mb-1 fs-4"><strong>Rodzina:</strong> <span class="fs-3">@familyName</span></p>
+            <button class="btn btn-outline-secondary" @onclick="NavigateToFamily">
+                ℹ️ Informacje o rodzinie
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card text-white bg-success mb-4">
+                <div class="card-header fw-bold">Saldo łączne</div>
+                <div class="card-body">
+                    <h3 class="text-white fw-bold text-center">@($"{userTotalBalance:F2} zł")</h3>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-center gap-3 mb-4">
+                <button class="btn btn-primary btn-lg" @onclick='@(() => Navigation.NavigateTo("/transactions/income"))'>
+                    ➕ Dodaj wpływ
+                </button>
+                <button class="btn btn-danger btn-lg" @onclick='@(() => Navigation.NavigateTo("/transactions/expense"))'>
+                    ➖ Dodaj wydatek
+                </button>
+            </div>
+
+            <div class="card border-secondary mb-4">
+                <div class="card-header bg-secondary text-white">Filtruj transakcje</div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label>Od:</label>
+                        <InputDate @bind-Value="filterStartDate" class="form-control" />
+                    </div>
+                    <div class="mb-2">
+                        <label>Do:</label>
+                        <InputDate @bind-Value="filterEndDate" class="form-control" />
+                    </div>
+                    <button class="btn btn-outline-primary" @onclick="ApplyDateFilter">Zastosuj filtr</button>
+                </div>
+            </div>
+
+            <div class="card border-secondary mb-4">
+                <div class="card-header bg-secondary text-white">Ostatnie transakcje</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr><th>Data</th><th>Kwota</th><th>Kategoria</th><th>Opis</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tx in GetFilteredTransactions())
+                            {
+                                <tr>
+                                    <td>@tx.Date.ToShortDateString()</td>
+                                    <td class="@(tx.Amount < 0 ? "text-danger" : "text-success")">@($"{tx.Amount:F2} zł")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(tx.CategoryName) ? "(brak)" : tx.CategoryName)</td>
+
+                                    <td>@(FormatDescription(tx.Description))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (userTransactions.Count > 5 && !showAllTransactions)
+                    {
+                        <div class="p-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => showAllTransactions = true">Pokaż wszystkie</button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card border-secondary mb-4">
+                <div class="card-header bg-secondary text-white">Podsumowanie - @DateTime.Now.ToString("MMMM yyyy")</div>
+                <div class="card-body">
+                    <p>Wpływy: <span class="text-success fw-bold">@($"{totalIncomes:F2} zł")</span></p>
+                    <p>Wydatki: <span class="text-danger fw-bold">@($"{totalExpenses:F2} zł")</span></p>
+                    <p>Razem: <span class="fw-bold">@($"{(totalIncomes - totalExpenses):F2} zł")</span></p>
+                </div>
+            </div>
+
+            <div class="card border-danger mb-4">
+                <div class="card-header bg-danger text-white">Wydatki - Ostatnie 7 dni</div>
+                <div class="card-body">
+                    <canvas id="weeklyChart" height="160"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
-    private List<Account>? accounts;
+    private string accountName = "";
+    private bool isLoading = true;
+    private string userName = "";
+    private string familyName = "";
+    private decimal userTotalBalance = 0;
+    private decimal totalIncomes = 0;
+    private decimal totalExpenses = 0;
+    private bool showAllTransactions = false;
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+
+    private List<TransactionDisplay> userTransactions = new();
+
+    private void NavigateToFamily() => Navigation.NavigateTo("/family");
+
+    private string FormatDescription(string? note)
+    {
+        if (string.IsNullOrWhiteSpace(note)) return "-";
+        if (note.StartsWith("Przelew do użytkownika "))
+        {
+            var id = note.Split(':')[0].Split(' ').Last();
+            var user = Db.Users.FirstOrDefault(u => u.Id == id);
+            if (user != null)
+                return note.Replace(id, user.Email);
+        }
+        return note;
+    }
+
+    private IEnumerable<TransactionDisplay> GetFilteredTransactions()
+    {
+        var filtered = userTransactions
+            .Where(t => (!filterStartDate.HasValue || t.Date >= filterStartDate.Value) &&
+                        (!filterEndDate.HasValue || t.Date <= filterEndDate.Value))
+            .OrderByDescending(t => t.Date)
+            .ThenByDescending(t => t.Id);
+
+        return showAllTransactions ? filtered : filtered.Take(5);
+    }
+
+    private void ApplyDateFilter()
+    {
+        showAllTransactions = true;
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Pobierz stan uwierzytelnienia i samego usera
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = await UserManager.GetUserAsync(auth.User)
-                   ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+        var user = await UserManager.GetUserAsync(auth.User) ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+        var firstAccount = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == user.Id);
+        accountName = firstAccount?.Name ?? "(brak)";
 
-        // 2. Filtruj konta po FamilyId
-        accounts = await Db.Accounts
-            .Where(a => a.FamilyId == user.FamilyId)
+        userName = user.UserName ?? user.Email ?? "(brak)";
+        familyName = (await Db.Families.FirstOrDefaultAsync(f => f.Id == user.FamilyId))?.Name ?? "(brak)";
+
+        var accounts = await Db.Accounts.Where(a => a.UserId == user.Id).ToListAsync();
+        var accountIds = accounts.Select(a => a.Id).ToList();
+
+        userTotalBalance = 0;
+        foreach (var acc in accounts)
+        {
+            userTotalBalance += await BalanceService.GetCurrentBalanceAsync(acc.Id);
+        }
+
+        var transactions = await Db.Transactions
+            .Where(t => accountIds.Contains(t.AccountId))
+            .Include(t => t.Category)
+            .OrderByDescending(t => t.Date)
             .ToListAsync();
+
+        var now = DateTime.Now;
+        totalIncomes = transactions.Where(t => t.Amount > 0 && t.Date.Month == now.Month && t.Date.Year == now.Year).Sum(t => t.Amount);
+        totalExpenses = -transactions.Where(t => t.Amount < 0 && t.Date.Month == now.Month && t.Date.Year == now.Year).Sum(t => t.Amount);
+
+        userTransactions = transactions
+            .OrderByDescending(t => t.Date)
+            .ThenByDescending(t => t.Id)
+            .Select(t => new TransactionDisplay
+                {
+                    Id = t.Id,
+                    Date = t.Date,
+                    Amount = t.Amount,
+                    CategoryName = t.Category?.Name ?? "(brak)",
+                    Description = t.Note ?? ""
+                }).ToList();
+
+        isLoading = false;
+    }
+
+    public class TransactionDisplay
+    {
+        public int Id { get; set; }
+        public DateTime Date { get; set; }
+        public decimal Amount { get; set; }
+        public string CategoryName { get; set; } = "";
+        public string Description { get; set; } = "";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || isLoading) return;
+
+        var last7Days = Enumerable.Range(0, 7).Select(i => DateTime.Today.AddDays(-6 + i)).ToList();
+
+        var expenseGroups = userTransactions
+            .Where(t => t.Amount < 0 && last7Days.Contains(t.Date.Date))
+            .GroupBy(t => t.Date.Date)
+            .ToDictionary(g => g.Key, g => -g.Sum(t => t.Amount));
+
+        var labels = last7Days.Select(d => d.ToString("dd/MM")).ToList();
+        var data = last7Days.Select(d => expenseGroups.ContainsKey(d) ? expenseGroups[d] : 0).ToList();
+
+        var jsLabels = System.Text.Json.JsonSerializer.Serialize(labels);
+        var jsData = System.Text.Json.JsonSerializer.Serialize(data);
+
+        await JS.InvokeVoidAsync("eval", $@"
+            if (window.weeklyChart && typeof window.weeklyChart.destroy === 'function') {{
+                window.weeklyChart.destroy();
+            }}
+            window.weeklyChart = new Chart(document.getElementById('weeklyChart'), {{
+                type: 'bar',
+                data: {{
+                    labels: {jsLabels},
+                    datasets: [{{
+                        label: 'Wydatki',
+                        data: {jsData},
+                        backgroundColor: '#dc3545'
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    plugins: {{
+                        legend: {{ display: false }}
+                    }}
+                }}
+            }});
+        ");
     }
 }

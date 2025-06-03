@@ -1,0 +1,60 @@
+﻿@page "/piggybanks/create"
+@attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@inject ApplicationDbContext Db
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3>Nowa skarbonka</h3>
+
+<EditForm Model="model" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Nazwa</label>
+        <InputText class="form-control" @bind-Value="model.Name" />
+    </div>
+
+    <div class="mb-3">
+        <label>Docelowa kwota</label>
+        <InputNumber class="form-control" @bind-Value="model.TargetAmount" />
+    </div>
+
+    <div class="mb-3">
+        <label>Notatka</label>
+        <InputTextArea class="form-control" @bind-Value="model.Note" />
+    </div>
+
+    <div class="mb-3">
+        <label>Data celu (opcjonalna)</label>
+        <InputDate class="form-control" @bind-Value="model.GoalDate" />
+    </div>
+
+    <button class="btn btn-success" type="submit">Utwórz</button>
+</EditForm>
+
+@code {
+    private PiggyBank model = new();
+    private ApplicationUser? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = await UserManager.GetUserAsync(auth.User)
+               ?? throw new InvalidOperationException("Brak użytkownika");
+
+        model.UserId = user.Id;
+    }
+
+    private async Task Save()
+    {
+        Db.PiggyBanks.Add(model);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("/piggybanks");
+    }
+}

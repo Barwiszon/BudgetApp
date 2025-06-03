@@ -41,7 +41,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // Pobierz bieżącego usera
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
@@ -51,12 +50,10 @@ else
 
         if (Id == 0)
         {
-            // fallback na Create, ale lepiej użyć dedykowanej Create.razor
             Nav.NavigateTo("/categories/create");
             return;
         }
 
-        // Pobierz kategorię tylko z tej samej rodziny
         category = await Db.Categories
                          .FirstOrDefaultAsync(c => c.Id == Id && c.FamilyId == currentFamilyId);
         if (category is null)

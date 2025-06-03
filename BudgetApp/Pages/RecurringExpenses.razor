@@ -1,0 +1,206 @@
+﻿@page "/recurring-expenses"
+@attribute [Authorize]
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<h3>🔁 Wydatki cykliczne</h3>
+
+@if (user == null)
+{
+    <p><em>Ładowanie...</em></p>
+}
+else
+{
+    <EditForm Model="@newExpense" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row g-2 mb-2">
+            <div class="col-md-3">
+                <label>Konto</label>
+                <InputSelect class="form-control" @bind-Value="newExpense.AccountId">
+                    <option value="">-- wybierz konto --</option>
+                    @foreach (var acc in accounts)
+                    {
+                        <option value="@acc.Id">@acc.Name</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <label>Kwota</label>
+                <InputNumber class="form-control" @bind-Value="newExpense.Amount" />
+            </div>
+            <div class="col-md-2">
+                <label>Częstotliwość</label>
+                <InputSelect class="form-control" @bind-Value="newExpense.Frequency">
+                    <option value="@RecurrenceFrequency.Weekly">Tygodniowo</option>
+                    <option value="@RecurrenceFrequency.Monthly">Miesięcznie</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-2">
+                <label>Data startu</label>
+                <InputDate class="form-control" @bind-Value="newExpense.StartDate" />
+            </div>
+            <div class="col-md-3">
+                <label>Notatka</label>
+                <InputText class="form-control" @bind-Value="newExpense.Note" />
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary me-2">@((editId == null) ? "Dodaj" : "Zapisz zmiany")</button>
+        @if (editId != null)
+        {
+            <button class="btn btn-secondary" @onclick="ResetForm">Anuluj</button>
+        }
+    </EditForm>
+
+    <hr />
+    <h5>Filtruj po koncie</h5>
+    <InputSelect class="form-select w-auto mb-3" @bind-Value="selectedAccountId">
+        <option value="">(Wszystkie)</option>
+        @foreach (var acc in accounts)
+        {
+            <option value="@acc.Id">@acc.Name</option>
+        }
+    </InputSelect>
+
+    <h5>Aktywne wydatki</h5>
+    @if (FilteredExpenses.Any())
+    {
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Konto</th>
+                    <th>Kwota</th>
+                    <th>Frek.</th>
+                    <th>Start</th>
+                    <th>Notatka</th>
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in FilteredExpenses)
+                {
+                    <tr>
+                        <td>@e.Account.Name</td>
+                        <td>@e.Amount.ToString("C")</td>
+                        <td>@e.Frequency</td>
+                        <td>@e.StartDate.ToShortDateString()</td>
+                        <td>@e.Note</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning me-1" @onclick="() => EditExpense(e)">✏️</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteExpense(e.Id)">🗑️</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>Brak wydatków.</p>
+    }
+}
+
+@code {
+    private ApplicationUser? user;
+    private List<Account> accounts = new();
+    private List<RecurringExpense> expenses = new();
+    private RecurringExpense newExpense = new();
+    private int? editId = null;
+    private int? selectedAccountId = null;
+
+    private IEnumerable<RecurringExpense> FilteredExpenses =>
+        selectedAccountId == null
+            ? expenses
+            : expenses.Where(e => e.AccountId == selectedAccountId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = await UserManager.GetUserAsync(auth.User);
+
+        if (user != null)
+        {
+            accounts = await Db.Accounts.Where(a => a.UserId == user.Id).ToListAsync();
+            expenses = await Db.RecurringExpenses
+                .Where(r => r.UserId == user.Id)
+                .Include(r => r.Account)
+                .ToListAsync();
+
+            ResetForm();
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (user == null) return;
+
+        if (editId == null)
+        {
+            newExpense.UserId = user.Id;
+            Db.RecurringExpenses.Add(newExpense);
+        }
+        else
+        {
+            var existing = await Db.RecurringExpenses.FindAsync(editId);
+            if (existing != null)
+            {
+                existing.AccountId = newExpense.AccountId;
+                existing.Amount = newExpense.Amount;
+                existing.Frequency = newExpense.Frequency;
+                existing.Note = newExpense.Note;
+                existing.StartDate = newExpense.StartDate;
+            }
+        }
+
+        await Db.SaveChangesAsync();
+        await ReloadExpenses();
+        ResetForm();
+    }
+
+    private async Task DeleteExpense(int id)
+    {
+        var exp = await Db.RecurringExpenses.FindAsync(id);
+        if (exp != null)
+        {
+            Db.RecurringExpenses.Remove(exp);
+            await Db.SaveChangesAsync();
+            await ReloadExpenses();
+        }
+    }
+
+    private void EditExpense(RecurringExpense e)
+    {
+        newExpense = new RecurringExpense
+            {
+                AccountId = e.AccountId,
+                Amount = e.Amount,
+                Frequency = e.Frequency,
+                Note = e.Note,
+                StartDate = e.StartDate
+            };
+        editId = e.Id;
+    }
+
+    private void ResetForm()
+    {
+        newExpense = new RecurringExpense
+            {
+                StartDate = DateTime.Today,
+                Frequency = RecurrenceFrequency.Monthly
+            };
+        editId = null;
+    }
+
+    private async Task ReloadExpenses()
+    {
+        expenses = await Db.RecurringExpenses
+            .Where(r => r.UserId == user!.Id)
+            .Include(r => r.Account)
+            .ToListAsync();
+    }
+}

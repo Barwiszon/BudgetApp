@@ -1,0 +1,293 @@
+﻿@page "/dashboard"
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IJSRuntime JS
+@inject BalanceService BalanceService
+@using BudgetApp.Services
+@using BudgetApp.Models
+
+<h3>Dashboard rodzinny</h3>
+
+@if (isLoading)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else if (!hasFamily)
+{
+    <div class="alert alert-warning">
+        Musisz należeć do rodziny, aby zobaczyć dashboard.
+    </div>
+}
+else
+{
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">Saldo łączne</div>
+                <div class="card-body">
+                    <h4>@($"{totalBalance:F2} zł")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-header">Wpływy (miesiąc)</div>
+                <div class="card-body">
+                    <h4>@($"{monthIn:F2} zł")</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-danger mb-3">
+                <div class="card-header">Wydatki (miesiąc)</div>
+                <div class="card-body">
+                    <h4>@($"{monthOut:F2} zł")</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-2 mb-4">
+        <h5>Stany kont rodzinnych</h5>
+        <table class="table table-sm">
+            <thead>
+                <tr><th>Nazwa konta</th><th>Saldo</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var acc in accountStates)
+                {
+                    <tr>
+                        <td>@acc.Name</td>
+                        <td><strong>@($"{acc.Balance:F2} zł")</strong></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mb-3 d-flex align-items-end">
+        <div class="me-2">
+            <label>Od:</label>
+            <InputDate @bind-Value="filterFrom" class="form-control" />
+        </div>
+        <div class="me-2">
+            <label>Do:</label>
+            <InputDate @bind-Value="filterTo" class="form-control" />
+        </div>
+        <div class="me-2">
+            <button class="btn btn-sm btn-primary" @onclick="LoadData">Zastosuj filtr</button>
+        </div>
+        <div class="me-2">
+            <label>Ilość transakcji:</label>
+            <InputNumber class="form-control" style="width:80px" @bind-Value="transactionsToShow" min="1" />
+        </div>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ExportCsv">📄 Eksportuj CSV</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Ostatnie transakcje</h5>
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr><th>Data</th><th>Kto</th><th>Kwota</th><th>Kategoria</th></tr>
+                </thead>
+                <tbody>
+                    @if (recentTx.Any())
+                    {
+                        foreach (var tx in recentTx.OrderByDescending(x => x.Date).Take(transactionsToShow))
+                        {
+                            <tr>
+                                <td>@tx.Date.ToShortDateString()</td>
+                                <td>@(string.IsNullOrEmpty(tx.UserEmail) ? "(brak)" : tx.UserEmail)</td>
+                                <td class="@(tx.Amount < 0 ? "text-danger" : "text-success")">@($"{tx.Amount:F2} zł")</td>
+                                <td>@(string.IsNullOrEmpty(tx.CategoryName) ? "(brak)" : tx.CategoryName)</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="4">Brak transakcji w wybranym okresie.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <h5>Rozkład wydatków wg kategorii</h5>
+            <canvas id="pieChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <h5>Ranking wydatków wg członków</h5>
+            <ul>
+                @foreach (var rank in expenseRanking)
+                {
+                    <li><strong>@rank.UserEmail</strong>: @($"{rank.Amount:F2} zł")</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool chartsReady = false;
+    private bool hasFamily = true;
+
+    private decimal totalBalance;
+    private decimal monthIn;
+    private decimal monthOut;
+
+    private DateTime filterFrom = DateTime.Today.AddMonths(-1);
+    private DateTime filterTo = DateTime.Today;
+
+    private int transactionsToShow = 40;
+
+    private List<AccountState> accountStates = new();
+    private List<RecentTx> recentTx = new();
+    private Dictionary<string, decimal> byCategory = new();
+    private List<UserExpense> expenseRanking = new();
+
+    public class AccountState
+    {
+        public string Name { get; set; } = "";
+        public decimal Balance { get; set; }
+    }
+
+    public class RecentTx
+    {
+        public DateTime Date { get; set; }
+        public string UserEmail { get; set; } = "";
+        public decimal Amount { get; set; }
+        public string CategoryName { get; set; } = "";
+    }
+
+    public class UserExpense
+    {
+        public string UserEmail { get; set; } = "";
+        public decimal Amount { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!chartsReady && !isLoading && hasFamily)
+        {
+            chartsReady = true;
+            await InitCharts();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        chartsReady = false;
+
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(auth.User);
+
+        if (user?.FamilyId == null)
+        {
+            hasFamily = false;
+            isLoading = false;
+            return;
+        }
+
+        hasFamily = true;
+        var famId = user.FamilyId.Value;
+
+        var accounts = await Db.Accounts
+            .Where(a => a.FamilyId == famId)
+            .ToListAsync();
+
+        accountStates.Clear();
+        totalBalance = 0;
+
+        foreach (var acc in accounts)
+        {
+            var balance = await BalanceService.GetCurrentBalanceAsync(acc.Id);
+            accountStates.Add(new AccountState { Name = acc.Name, Balance = balance });
+            totalBalance += balance;
+        }
+
+        var fromDate = filterFrom.Date;
+        var toDateInclusive = filterTo.Date.AddDays(1);
+
+        var txs = await Db.Transactions
+            .Include(t => t.User)
+            .Include(t => t.Category)
+            .Where(t => t.FamilyId == famId && t.Date >= fromDate && t.Date < toDateInclusive)
+            .OrderByDescending(t => t.Date)
+            .ToListAsync();
+
+        monthIn = txs.Where(t => t.Amount > 0).Sum(t => t.Amount);
+        monthOut = -txs.Where(t => t.Amount < 0).Sum(t => t.Amount);
+
+        recentTx = txs
+            .Select(t => new RecentTx
+                {
+                    Date = t.Date,
+                    UserEmail = t.User?.Email ?? "(brak)",
+                    Amount = t.Amount,
+                    CategoryName = t.Category?.Name ?? "(brak)"
+                })
+            .ToList();
+
+        byCategory = txs.Where(t => t.Amount < 0)
+            .GroupBy(t => t.Category?.Name ?? "(brak)")
+            .ToDictionary(g => g.Key, g => -g.Sum(t => t.Amount));
+
+        expenseRanking = txs.Where(t => t.Amount < 0)
+            .GroupBy(t => t.User?.Email ?? "(brak)")
+            .Select(g => new UserExpense { UserEmail = g.Key, Amount = -g.Sum(t => t.Amount) })
+            .OrderByDescending(e => e.Amount)
+            .ToList();
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task InitCharts()
+    {
+        await JS.InvokeVoidAsync("eval", @"
+    if (window.pieChart && typeof window.pieChart.destroy === 'function') {
+        window.pieChart.destroy();
+    }
+");
+
+        var pieLabels = JsonSerializer.Serialize(byCategory.Keys);
+        var pieData = JsonSerializer.Serialize(byCategory.Values);
+
+        await JS.InvokeVoidAsync("eval", $@"
+          window.pieChart = new Chart(document.getElementById('pieChart'), {{
+            type: 'pie',
+            data: {{
+              labels: {pieLabels},
+              datasets: [{{ data: {pieData}, backgroundColor: ['#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF','#FF9F40'] }}]
+            }}
+          }});");
+    }
+
+    private async Task ExportCsv()
+    {
+        var csv = "Nazwa konta,Saldo\n";
+        foreach (var acc in accountStates)
+        {
+            csv += $"{acc.Name},{acc.Balance}\n";
+        }
+
+        await JS.InvokeVoidAsync("BlazorDownloadFile", "dashboard_summary.csv", "text/csv", csv);
+    }
+}

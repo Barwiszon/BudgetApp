@@ -50,12 +50,10 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Pobierz stan uwierzytelnienia i usera
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
 
-        // 2. Filtruj kategorie po FamilyId
         categories = await Db.Categories
             .Where(c => c.FamilyId == user.FamilyId)
             .ToListAsync();

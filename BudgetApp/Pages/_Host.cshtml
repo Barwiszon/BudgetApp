@@ -1,28 +1,26 @@
 ﻿@page "/"
 @namespace BudgetApp.Pages
 @using BudgetApp
-
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
-<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="utf-8" />
-	<base href="~/" />
 
-	<!-- odwołanie do Bootstrap -->
-	<link rel="stylesheet" href="~/css/bootstrap/bootstrap.min.css" />
-	<!-- Twój app.css -->
-	<link rel="stylesheet" href="~/css/app.css" />
-	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-	<title>BudgetApp</title>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8" />
+    <base href="~/" />
+
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+
 </head>
 <body>
-	<app>
-		<component type="typeof(App)" render-mode="ServerPrerendered" />
-	</app>
-
-	<script src="_framework/blazor.server.js"></script>
-	<!-- dołączamy tu Bootstrap JS -->
-	<script src="lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <app>
+        <component type="typeof(App)" render-mode="ServerPrerendered" />
+    </app>
+    <script src="js/download.js"></script>
+    <script src="_framework/blazor.server.js"></script>
+    <script src="lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -1,0 +1,101 @@
+﻿@page "/transactions/expense"
+@attribute [Authorize]
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager Nav
+
+<h3>Dodaj wydatek</h3>
+
+@if (tx == null)
+{
+    <p><em>Ładowanie…</em></p>
+}
+else
+{
+    <EditForm Model="tx" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label>Data</label>
+            <InputDate class="form-control" @bind-Value="tx.Date" />
+        </div>
+
+        <div class="mb-3">
+            <label>Kwota (wydatki wpisujemy jako dodatnie)</label>
+            <InputNumber class="form-control" @bind-Value="tx.Amount" />
+        </div>
+
+        <div class="mb-3">
+            <label>Kategoria</label>
+            <InputSelect class="form-select" @bind-Value="tx.CategoryId">
+                <option value="">— wybierz —</option>
+                @foreach (var cat in categories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label>Notatka</label>
+            <InputText class="form-control" @bind-Value="tx.Note" />
+        </div>
+
+        <button class="btn btn-danger">Dodaj wydatek</button>
+    </EditForm>
+}
+
+@code {
+    private Transaction tx = new();
+    private List<Category> categories = new();
+    private ApplicationUser? user;
+    private Account? userAccount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = await UserManager.GetUserAsync(auth.User)
+            ?? throw new InvalidOperationException("Brak użytkownika");
+
+        userAccount = await Db.Accounts
+            .Where(a => a.UserId == user.Id)
+            .OrderByDescending(a => a.Id)
+            .FirstOrDefaultAsync();
+
+        if (userAccount == null)
+        {
+            throw new InvalidOperationException("Użytkownik nie ma przypisanego konta.");
+        }
+
+
+        categories = await Db.Categories
+            .Where(c => c.UserId == user.Id)
+            .ToListAsync();
+
+        tx = new Transaction
+            {
+                Date = DateTime.Now,
+                Amount = 0,
+                FamilyId = user.FamilyId,
+                UserId = user.Id,
+                AccountId = userAccount.Id,
+                Type = TransactionType.Expense
+            };
+    }
+
+    private async Task Save()
+    {
+        tx.Amount = -Math.Abs(tx.Amount); 
+
+        Db.Transactions.Add(tx);
+        await Db.SaveChangesAsync();
+
+        Nav.NavigateTo("/accounts");
+    }
+}

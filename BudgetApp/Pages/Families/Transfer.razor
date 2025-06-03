@@ -1,0 +1,162 @@
+﻿@page "/family/transfer"
+@attribute [Authorize]
+@using BudgetApp.Models
+@using Microsoft.AspNetCore.Identity
+@inject ApplicationDbContext Db
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject BalanceService BalanceService
+@using BudgetApp.Services
+
+<h3>Przelew rodzinny</h3>
+
+@if (user == null)
+{
+    <p>Ładowanie...</p>
+}
+else
+{
+    <EditForm Model="transfer" OnValidSubmit="MakeTransfer">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <div class="mb-3">
+            <label>Do użytkownika:</label>
+            <InputSelect class="form-control" @bind-Value="transfer.ToUserId">
+                <option value="">-- Wybierz --</option>
+                @foreach (var u in familyMembers)
+                {
+                    if (u.Id == user.Id) continue;
+                    <option value="@u.Id">@u.Email</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="mb-3">
+            <label>Kwota:</label>
+            <InputNumber class="form-control" @bind-Value="transfer.Amount" />
+        </div>
+
+        <div class="mb-3">
+            <label>Notatka:</label>
+            <InputText class="form-control" @bind-Value="transfer.Note" />
+        </div>
+
+        <button class="btn btn-success" type="submit">Wykonaj przelew</button>
+    </EditForm>
+}
+
+@code {
+    private ApplicationUser? user;
+    private List<ApplicationUser> familyMembers = new();
+    private FamilyTransfer transfer = new();
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        user = await UserManager.GetUserAsync(auth.User);
+
+        if (user?.FamilyId != null)
+        {
+            transfer.FromUserId = user.Id;
+            transfer.FamilyId = user.FamilyId.Value;
+
+            familyMembers = await Db.Users
+                .Where(u => u.FamilyId == user.FamilyId)
+                .ToListAsync();
+        }
+    }
+
+    private async Task MakeTransfer()
+    {
+        errorMessage = null;
+
+        if (transfer.Amount <= 0)
+        {
+            errorMessage = "Kwota musi być większa od zera!";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(transfer.ToUserId))
+        {
+            errorMessage = "Musisz wybrać odbiorcę przelewu.";
+            return;
+        }
+
+        if (transfer.ToUserId == transfer.FromUserId)
+        {
+            errorMessage = "Nie możesz wysłać przelewu do samego siebie.";
+            return;
+        }
+
+        transfer.Date = DateTime.Now;
+        Db.FamilyTransfers.Add(transfer);
+
+        var senderAccount = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == transfer.FromUserId);
+        var receiverAccount = await Db.Accounts.FirstOrDefaultAsync(a => a.UserId == transfer.ToUserId);
+
+        if (senderAccount == null || receiverAccount == null)
+        {
+            errorMessage = "Brak konta nadawcy lub odbiorcy!";
+            return;
+        }
+
+        var senderBalance = await BalanceService.GetCurrentBalanceAsync(senderAccount.Id);
+        if (transfer.Amount > senderBalance)
+        {
+            errorMessage = $"Brak środków: saldo konta nadawcy to {senderBalance} zł.";
+            return;
+        }
+
+        var transferCategory = await Db.Categories
+            .FirstOrDefaultAsync(c => c.FamilyId == transfer.FamilyId && c.Name == "Transfer");
+
+        if (transferCategory == null)
+        {
+            transferCategory = new Category
+                {
+                    FamilyId = transfer.FamilyId,
+                    Name = "Transfer",
+                    UserId = user!.Id
+                };
+            Db.Categories.Add(transferCategory);
+            await Db.SaveChangesAsync();
+        }
+
+        var senderName = senderAccount.Name;
+        var receiverName = receiverAccount.Name;
+
+        Db.Transactions.Add(new Transaction
+            {
+                UserId = transfer.FromUserId,
+                AccountId = senderAccount.Id,
+                Amount = -transfer.Amount,
+                Date = transfer.Date,
+                Note = $"Przelew do użytkownika {receiverName}: {transfer.Note}",
+                FamilyId = transfer.FamilyId,
+                Type = TransactionType.Transfer,
+                CategoryId = transferCategory.Id
+            });
+
+        Db.Transactions.Add(new Transaction
+            {
+                UserId = transfer.ToUserId,
+                AccountId = receiverAccount.Id,
+                Amount = transfer.Amount,
+                Date = transfer.Date,
+                Note = $"Przelew od użytkownika {senderName}: {transfer.Note}",
+                FamilyId = transfer.FamilyId,
+                Type = TransactionType.Transfer,
+                CategoryId = transferCategory.Id
+            });
+
+        await Db.SaveChangesAsync();
+        Navigation.NavigateTo("/family");
+    }
+}

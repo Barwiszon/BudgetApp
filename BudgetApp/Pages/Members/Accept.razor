@@ -3,38 +3,65 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity.UI.Services
 @inject AuthenticationStateProvider AuthStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject ApplicationDbContext Db
 @inject NavigationManager Nav
+@inject IEmailSender EmailSender
 
 <h3>Dołączanie do rodziny…</h3>
 
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="alert alert-info">@statusMessage</div>
+}
+
 @code {
     [Parameter] public string Token { get; set; } = "";
+    private string statusMessage = "";
 
     protected override async Task OnInitializedAsync()
     {
-   
         var auth = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(auth.User)
                    ?? throw new InvalidOperationException("Brak zalogowanego użytkownika");
 
-         
-        var invite = await Db.Invites
-                             .FirstOrDefaultAsync(i => i.Id == Token && i.Email == user.Email);
-        if (invite == null)
+        if (user.FamilyId != null)
         {
-            Nav.NavigateTo("/", forceLoad: true);
+            statusMessage = "Już należysz do rodziny.";
             return;
         }
+
+        var invite = await Db.Invites
+            .Include(i => i.Family)
+            .FirstOrDefaultAsync(i => i.Id == Token && i.Email == user.Email);
+
+        if (invite == null)
+        {
+            statusMessage = "Nie znaleziono zaproszenia lub zostało już wykorzystane.";
+            return;
+        }
+
 
         user.FamilyId = invite.FamilyId;
         await UserManager.UpdateAsync(user);
 
+        var family = invite.Family!;
+        var owner = await UserManager.FindByIdAsync(family.CreatedByUserId);
+        if (owner != null)
+        {
+            await EmailSender.SendEmailAsync(
+                owner.Email!,
+                "Nowy członek w rodzinie",
+                $@"Użytkownik <strong>{user.Email}</strong> dołączył do Twojej rodziny <strong>{family.Name}</strong>.");
+        }
+
         Db.Invites.Remove(invite);
         await Db.SaveChangesAsync();
 
+        statusMessage = $"Pomyślnie dołączono do rodziny: {invite.Family?.Name}";
+        await Task.Delay(2500);
         Nav.NavigateTo("/family");
     }
 }

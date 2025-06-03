@@ -1,0 +1,21 @@
+{
+    "version": "3.0",
+    "defaultProvider": "jsdelivr",
+    "libraries": [
+        {
+            "library": "bootstrap@5.3.2",
+            "destination": "wwwroot/lib/bootstrap/",
+            "files": [
+                "dist/css/bootstrap.min.css",
+                "dist/js/bootstrap.bundle.min.js"
+            ]
+        },
+        {
+            "library": "chart.js@2.9.4",
+            "destination": "wwwroot/lib/chart.js/",
+            "files": [
+                "dist/Chart.bundle.min.js"
+            ]
+        }
+    ]
+}
