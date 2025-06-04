@@ -30,10 +30,6 @@
 - Kategorie globalne (dla rodziny) i prywatne (dla użytkownika)
 - Każda transakcja przypisana do kategorii
 
-## Transakcje cykliczne
-- Dodawanie wpływów i wydatków powtarzających się co tydzień lub miesiąc
-- Automatyczne generowanie przez `AutoRecurringExpenseService` i `AutoDepositService`
-
 ## Dashboard
 - Zbiorcze saldo wszystkich kont rodziny
 - Podsumowanie wpływów i wydatków w bieżącym miesiącu
@@ -69,6 +65,14 @@
 
 ---
 ## Widoki
+![obraz](https://github.com/user-attachments/assets/6812acd5-52d6-4cde-ac75-a153fa4712fc)
+![obraz](https://github.com/user-attachments/assets/645ddb6b-5fa8-4d73-a7c0-aa20249d663c)
+
+
+
+
+
+
 
 
 ## Uruchamianie
